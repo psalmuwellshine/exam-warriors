@@ -228,8 +228,12 @@
       saveNick(f.querySelector('input').value).then(function () { if (run) renderQuizzes(); });
     }
   });
-  $('#f-kind').addEventListener('change', function (e) { fKind = e.target.value; renderLibrary(); });
-  $('#f-q').addEventListener('input', function (e) { fQ = e.target.value.trim().toLowerCase(); renderLibrary(); });
+  var fKindEl = $('#f-kind');
+  if (fKindEl) fKindEl.addEventListener('change', function (e) { fKind = e.target.value; renderLibrary(); });
+  
+  var fQEl = $('#f-q');
+  if (fQEl) fQEl.addEventListener('input', function (e) { fQ = e.target.value.trim().toLowerCase(); renderLibrary(); });
+  
   document.querySelectorAll('.share').forEach(function (b) { b.addEventListener('click', shareSite); });
   function shareSite() {
     var data = { title: 'Exam Warriors', text: 'Give The Best, Take The Best. Study notes and quizzes for NDU students.', url: location.href.split('#')[0] };
@@ -241,7 +245,9 @@
   document.addEventListener('visibilitychange', function () { if (!document.hidden && !run) refresh(true); });
   setInterval(function () { if (!document.hidden && !run) refresh(true); }, 60000);
 
-  buildFilters(); renderLibrary(); renderQuizzes(); renderBoard();
+    if (document.getElementById('v-library')) {
+    buildFilters(); renderLibrary(); renderQuizzes(); renderBoard();
+  }
   setView(location.hash.slice(1));
   refresh();
 })();
