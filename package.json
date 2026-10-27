@@ -1,0 +1,16 @@
+{
+  "name": "exam-warriors",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Exam Warriors: study library, quizzes and leaderboard for NDU students",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "mongodb": "^6.10.0"
+  }
+}
