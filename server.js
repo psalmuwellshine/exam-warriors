@@ -285,15 +285,16 @@ async function main() {
   });
 
   route('POST', '/api/scores', { limit: ['scores', 60, 10 * 60 * 1000] }, async (req, res, ctx) => {
-    const { deviceId, quizId, answers } = ctx.body;
-    if (!okDevice(deviceId) || typeof quizId !== 'string') throw new HttpError(400, 'Invalid request.');
+    const { userId, deviceId, quizId, answers } = ctx.body;
+    const idToUse = userId || deviceId;
+    if (!idToUse || typeof quizId !== 'string') throw new HttpError(400, 'Invalid request.');
     const quiz = await store.get('quizzes', quizId);
     if (!quiz) throw new HttpError(404, 'That quiz no longer exists.');
     if (!Array.isArray(answers) || answers.length !== quiz.questions.length) throw new HttpError(400, 'Answers do not match the quiz.');
     let correct = 0;
     quiz.questions.forEach((q, i) => { if (answers[i] === q.a) correct++; });
     const total = quiz.questions.length;
-    const rec = (await store.get('scores', deviceId)) || { id: deviceId, nick: '', best: {} };
+    const rec = (await store.get('scores', idToUse)) || { id: idToUse, nick: '', best: {} };
     const prev = rec.best[quizId];
     const improved = !prev || correct > prev.correct;
     if (improved) rec.best[quizId] = { correct, total };
