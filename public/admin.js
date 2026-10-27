@@ -207,21 +207,6 @@
   }).catch(function () { app.innerHTML = '<div class="empty"><b>Could not reach the server</b>Check your connection and reload.</div>'; });
 })();
 
-// --- NEW: Add the Load Students Button ---
-const appContainer = document.getElementById('app');
-if (appContainer) {
-  const btnSection = document.createElement('div');
-  btnSection.style.marginTop = '40px';
-  btnSection.style.borderTop = '1px solid #333';
-  btnSection.style.paddingTop = '20px';
-  btnSection.innerHTML = `
-    <h3>Registered Students</h3>
-    <p class="sub">View all users who have created an account and their best scores.</p>
-    <button id="load-students-btn" class="btn" style="margin-bottom: 20px;">Load Students</button>
-  `;
-  appContainer.appendChild(btnSection);
-}
-
 // --- NEW: Load Students Logic ---
 document.addEventListener('click', async (e) => {
   // If the user clicks our new button
