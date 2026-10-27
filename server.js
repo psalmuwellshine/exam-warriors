@@ -155,7 +155,9 @@ function serveStatic(req, res, pathname) {
   if (rel === '/admin') rel = '/admin.html';
   let file = path.normalize(path.join(PUBLIC_DIR, rel));
   if (!file.startsWith(PUBLIC_DIR)) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
-    
+        if (pathname === '/login.html' || pathname === '/login.js') {
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;");
+    }
   fs.readFile(file, (err, buf) => {
     if (err) {
       return fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (e2, b2) =>
