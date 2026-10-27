@@ -18,7 +18,7 @@ const SESSION_HOURS = 12;
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
 const MAX_BODY_BYTES = 18 * 1024 * 1024;
 const KINDS = ['notes', 'pq', 'slides', 'other'];
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const PUBLIC_DIR = path.resolve(__dirname, 'public');
 
 const FILE_TYPES = {
   'application/pdf': { inline: true },
