@@ -270,45 +270,49 @@ if (logoutBtn) {
 }
 
 // --- NEW PROFILE LOGIC ---
-// If we are on the profile page, load the scores
 if (window.location.pathname === '/profile.html') {
   const userStr = localStorage.getItem('examWarriorUser');
-  if (userStr) {
+  
+  if (!userStr) {
+    window.location.href = '/login.html';
+  } else {
     const user = JSON.parse(userStr);
     document.getElementById('welcome-text').textContent = `Welcome, ${user.username}!`;
     
-    // The app.js has a global 'S' object that holds the server data.
-    // We wait a tiny bit for it to load, then render the scores.
-    setTimeout(() => {
-      const list = document.getElementById('scores-list');
-      if (!list) return;
+    // We use the same fetch request that app.js uses
+    fetch(`/api/state?device=${user.username}`)
+      .then(res => res.json())
+      .then(data => {
+        const list = document.getElementById('scores-list');
+        if (!list) return;
 
-      // Look for the user's scores inside the server data (S.scores)
-      // The server sends back all scores. We filter for ours.
-      const myScores = S.scores.filter(s => s.id === user.username || s.id === user.id);
-      
-      if (myScores.length === 0) {
-        list.innerHTML = '<p style="text-align:center; color:#ccc;">You haven\'t taken any quizzes yet! Go to the homepage to try one.</p>';
-        return;
-      }
-      
-      // Build the HTML to show the scores
-      let html = '<h3 style="color:#f5c211; margin-bottom:15px;">Your Best Scores:</h3>';
-      const myBest = myScores[0].best; // Get the best scores object
-      
-      for (const [quizId, score] of Object.entries(myBest)) {
-        // Find the quiz title
-        const quiz = S.quizzes.find(q => q.id === quizId);
-        const title = quiz ? quiz.title : 'Unknown Quiz';
+        // Check if we have scores for this user
+        if (!data.me || !data.me.best || Object.keys(data.me.best).length === 0) {
+          list.innerHTML = '<p style="text-align:center; color:#ccc;">You haven\'t taken any quizzes yet! Go to the homepage to try one.</p>';
+          return;
+        }
         
-        html += `
-          <div class="score-card">
-            <span class="score-title">${title}</span>
-            <span class="score-points">${score} pts</span>
-          </div>
-        `;
-      }
-      list.innerHTML = html;
-    }, 1000); // Wait 1 second for data to load
+        // Build the HTML
+        let html = '<h3 style="color:#f5c211; margin-bottom:15px;">Your Best Scores:</h3>';
+        const myBest = data.me.best;
+        
+        for (const [quizId, score] of Object.entries(myBest)) {
+          // Find the quiz title
+          const quiz = data.quizzes.find(q => q.id === quizId);
+          const title = quiz ? quiz.title : 'Unknown Quiz';
+          
+          html += `
+            <div class="score-card">
+              <span class="score-title">${title}</span>
+              <span class="score-points">${score} pts</span>
+            </div>
+          `;
+        }
+        list.innerHTML = html;
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById('scores-list').innerHTML = '<p style="color:red; text-align:center;">Failed to load scores.</p>';
+      });
   }
 }
