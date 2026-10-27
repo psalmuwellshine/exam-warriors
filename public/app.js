@@ -243,3 +243,26 @@
   setView(location.hash.slice(1));
   refresh();
 })();
+// Check if the user is logged in
+const loggedInUser = localStorage.getItem('examWarriorUser');
+const authBtn = document.getElementById('nav-auth-btn');
+const logoutBtn = document.getElementById('nav-logout-btn');
+
+if (loggedInUser) {
+  const user = JSON.parse(loggedInUser);
+  if (authBtn) {
+    authBtn.textContent = 'Hi, ' + user.username;
+    authBtn.href = '#'; 
+    authBtn.style.color = '#fff';
+  }
+  if (logoutBtn) {
+    logoutBtn.style.display = 'block';
+  }
+}
+
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('examWarriorUser');
+    window.location.reload(); 
+  });
+}
