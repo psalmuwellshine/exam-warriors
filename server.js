@@ -154,7 +154,7 @@ function serveStatic(req, res, pathname) {
   let rel = pathname === '/' ? '/index.html' : pathname;
   if (rel === '/admin') rel = '/admin.html';
   let file = path.normalize(path.join(PUBLIC_DIR, rel));
-  if (!file.startsWith(PUBLIC_DIR + path.sep)) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
+  if (!file.startsWith(PUBLIC_DIR)) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
   fs.readFile(file, (err, buf) => {
     if (err) {
       return fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (e2, b2) =>
