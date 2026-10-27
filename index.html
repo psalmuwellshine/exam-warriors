@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Exam Warriors</title>
+<meta name="description" content="Study notes, past questions and practice quizzes for NDU students. Give The Best, Take The Best.">
+<meta name="theme-color" content="#7A1414">
+<link rel="icon" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Albert+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="band gut">
+  <div class="in head">
+    <div class="brand">
+      <img class="logo" src="/logo.png" alt="Exam Warriors logo">
+      <div>
+        <span class="wm">Exam Warriors</span>
+        <span class="tagline">Give The Best, Take The Best</span>
+      </div>
+    </div>
+    <div class="stats" id="stats" aria-label="Site totals"></div>
+    <a href="/login.html" style="margin-left: 20px; color: #f5c211; font-weight: bold; text-decoration: none; align-self: center;">Login / Register</a>
+  </div>
+</header>
+
+<div class="notice gut" id="notice" hidden><div class="in"><p><span class="lbl">Notice</span><span id="notice-text"></span></p></div></div>
+
+<nav class="tabs gut" aria-label="Sections">
+  <div class="in" role="tablist">
+    <button class="tab" id="t-library" role="tab" data-v="library" aria-selected="true">Library</button>
+    <button class="tab" id="t-quizzes" role="tab" data-v="quizzes" aria-selected="false">Quizzes</button>
+    <button class="tab" id="t-leaderboard" role="tab" data-v="leaderboard" aria-selected="false">Leaderboard</button>
+    <button class="btn ghost small share" id="share" type="button">Share site</button>
+  </div>
+</nav>
+
+<main class="gut">
+  <div class="in">
+    <section id="v-library">
+      <div class="sec-head"><h2>Study library</h2><p class="sub">Notes, past questions and slides, filed by course.</p></div>
+      <div class="filters">
+        <div class="chips" id="chips" role="group" aria-label="Filter by course"></div>
+        <div class="frow">
+          <select id="f-kind" aria-label="Filter by type"></select>
+          <input type="search" id="f-q" placeholder="Search titles" aria-label="Search titles">
+        </div>
+      </div>
+      <div id="lib-list" class="list"></div>
+    </section>
+
+    <section id="v-quizzes" hidden>
+      <div class="sec-head"><h2>Practice quizzes</h2><p class="sub">Pick an answer, read the explanation, beat your best score.</p></div>
+      <div id="quiz-zone"></div>
+    </section>
+
+    <section id="v-leaderboard" hidden>
+      <div class="sec-head"><h2>Leaderboard</h2><p class="sub">10 points for every correct answer, from your best attempt at each quiz.</p></div>
+      <div id="board-zone"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="gut"><div class="in">Exam Warriors &middot; Niger Delta University<div class="foot-share"><button class="btn ghost small share" type="button">Share site</button></div></div></footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
