@@ -308,7 +308,7 @@ if (window.location.pathname === '/profile.html') {
     document.getElementById('welcome-text').textContent = `Welcome, ${user.username}!`;
     
     // We use the same fetch request that app.js uses
-    fetch(`/api/state?device=${user.username}`)
+    fetch(`/api/state?device=${user.id}`)
       .then(res => res.json())
       .then(data => {
         const list = document.getElementById('scores-list');
