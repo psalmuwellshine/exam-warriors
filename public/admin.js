@@ -204,78 +204,52 @@
     if (!r.configured) return showLogin(false);
     if (!r.admin) return showLogin(true);
     start();
-  }).catch(function () { app.innerHTML = '<div class="empty"><b>Could not reach the server</b>Check your connection and reload.</div>'; });
-})();
-
-// --- NEW: Load Students Logic ---
-document.addEventListener('click', async (e) => {
-  // If the user clicks our new button
-  if (e.target && e.target.id === 'load-students-btn') {
-    const btn = e.target;
-    btn.textContent = 'Loading...';
-    
-    try {
-      const response = await fetch('/api/admin/users');
-      if (!response.ok) throw new Error('Failed to fetch users');
-      
-      const data = await response.json();
-      
-      // Create the table container if it doesn't exist yet
-      let container = document.getElementById('students-table-container');
-      if (!container) {
-        // Find the main app div and append our new section
-        const app = document.getElementById('app');
-        const section = document.createElement('section');
-        section.style.marginTop = '40px';
-        section.innerHTML = `
-          <h3>Registered Students</h3>
-          <p class="sub">View all users who have created an account and their best scores.</p>
-          <div id="students-table-container" style="overflow-x: auto; margin-top: 15px;">
-            <table style="width: 100%; text-align: left; border-collapse: collapse; color: #fff;">
-              <thead>
-                <tr style="border-bottom: 1px solid #f5c211;">
-                  <th style="padding: 10px;">Username</th>
-                  <th style="padding: 10px;">Quizzes Taken</th>
-                  <th style="padding: 10px;">Total Points</th>
-                </tr>
-              </thead>
-              <tbody id="students-table-body"></tbody>
-            </table>
-          </div>
-        `;
-        app.appendChild(section);
-        container = document.getElementById('students-table-container');
-      }
-      
-      const tableBody = document.getElementById('students-table-body');
-      tableBody.innerHTML = ''; // Clear old data
-      
-      if (data.students.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="3" style="padding: 10px;">No students registered yet.</td></tr>';
-      } else {
-        data.students.forEach(student => {
-          let totalPoints = 0;
-          const quizzesTaken = Object.keys(student.bestScores).length;
+        // --- NEW: Load Students Logic ---
+    const loadStudentsBtn = document.getElementById('load-students-btn');
+    if (loadStudentsBtn) {
+      loadStudentsBtn.addEventListener('click', async () => {
+        const btn = e.target; // wait, e is not defined here. Let's use loadStudentsBtn
+        loadStudentsBtn.textContent = 'Loading...';
+        
+        try {
+          const response = await fetch('/api/admin/users');
+          if (!response.ok) throw new Error('Failed to fetch users');
           
-          for (const scoreData of Object.values(student.bestScores)) {
-            totalPoints += (scoreData.correct || scoreData.points || 0);
+          const data = await response.json();
+          const tableBody = document.getElementById('students-table-body');
+          const container = document.getElementById('students-table-container');
+          
+          tableBody.innerHTML = ''; 
+          
+          if (data.students.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="3" style="padding: 10px;">No students registered yet.</td></tr>';
+          } else {
+            data.students.forEach(student => {
+              let totalPoints = 0;
+              const quizzesTaken = Object.keys(student.bestScores).length;
+              
+              for (const scoreData of Object.values(student.bestScores)) {
+                totalPoints += (scoreData.correct || scoreData.points || 0);
+              }
+              
+              const row = document.createElement('tr');
+              row.style.borderBottom = '1px solid #333';
+              row.innerHTML = `
+                <td style="padding: 10px;">${student.username}</td>
+                <td style="padding: 10px;">${quizzesTaken}</td>
+                <td style="padding: 10px;">${totalPoints}</td>
+              `;
+              tableBody.appendChild(row);
+            });
           }
           
-          const row = document.createElement('tr');
-          row.style.borderBottom = '1px solid #333';
-          row.innerHTML = `
-            <td style="padding: 10px;">${student.username}</td>
-            <td style="padding: 10px;">${quizzesTaken}</td>
-            <td style="padding: 10px;">${totalPoints}</td>
-          `;
-          tableBody.appendChild(row);
-        });
-      }
-      
-    } catch (err) {
-      alert('Error loading students: ' + err.message);
-    } finally {
-      btn.textContent = 'Refresh Students';
+          container.style.display = 'block';
+        } catch (err) {
+          alert('Error loading students: ' + err.message);
+        } finally {
+          loadStudentsBtn.textContent = 'Refresh Students';
+        }
+      });
     }
-  }
-});
+  }).catch(function () { app.innerHTML = '<div class="empty"><b>Could not reach the server</b>Check your connection and reload.</div>'; });
+})();
