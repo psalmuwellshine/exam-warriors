@@ -41,7 +41,7 @@
       <div id="success-box" class="success-msg"></div>
 
       <!-- LOGIN FORM -->
-      <div id="login-section">
+      <div id="login-section" style="display: block;">
         <h2>Login</h2>
         <form id="form-login">
           <div class="form-group">
@@ -61,7 +61,7 @@
       </div>
 
       <!-- REGISTER FORM -->
-      <div id="register-section" class="hidden">
+      <div id="register-section" style="display: none;">
         <h2>Create an Account</h2>
         <form id="form-register">
           <div class="form-group">
@@ -94,8 +94,8 @@
       e.preventDefault();
       errorBox.style.display = 'none';
       successBox.style.display = 'none';
-      loginSection.classList.add('hidden');
-      registerSection.classList.remove('hidden');
+      loginSection.style.display = 'none';      // Hides login
+      registerSection.style.display = 'block';  // Shows register
     });
 
     // Switch to Login mode
@@ -103,8 +103,8 @@
       e.preventDefault();
       errorBox.style.display = 'none';
       successBox.style.display = 'none';
-      registerSection.classList.add('hidden');
-      loginSection.classList.remove('hidden');
+      registerSection.style.display = 'none';   // Hides register
+      loginSection.style.display = 'block';     // Shows login
     });
 
     // Handle Login Submission
