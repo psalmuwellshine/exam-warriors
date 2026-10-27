@@ -193,7 +193,8 @@
   /* ---------- events ---------- */
   function setView(v) {
     if (VIEWS.indexOf(v) < 0) v = 'library';
-    VIEWS.forEach(function (n) { $('#v-' + n).hidden = n !== v; $('#t-' + n).setAttribute('aria-selected', String(n === v)); });
+    const targetView = document.getElementById('v-' + v);
+    
     try { history.replaceState(null, '', '#' + v); } catch (e) { /* ignore */ }
     if (v === 'leaderboard' && S.loaded) refresh(true);
   }
