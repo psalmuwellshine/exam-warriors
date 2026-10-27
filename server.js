@@ -160,9 +160,12 @@ function serveStatic(req, res, pathname) {
     }
   fs.readFile(file, (err, buf) => {
     if (err) {
+      if (file.endsWith('.js')) {
+        return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
+      }
       return fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (e2, b2) =>
         e2 ? send(res, 404, 'Not found', { 'Content-Type': 'text/plain' })
-          : send(res, 404, b2, { 'Content-Type': STATIC_TYPES['.html'] }));
+           : send(res, 404, b2, { 'Content-Type': STATIC_TYPES['.html'] }));
     }
     const ext = path.extname(file).toLowerCase();
     send(res, 200, buf, {
