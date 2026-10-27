@@ -55,7 +55,7 @@
       document.getElementById('welcome-text').textContent = `Welcome, ${user.username}!`;
       
       // Fetch their specific data from the server using the ?device= query trick
-      fetch(`/api/state?device=${user.id}`)
+      fetch(`/api/state?device=${user.username}`)
         .then(res => res.json())
         .then(data => {
           const list = document.getElementById('scores-list');
