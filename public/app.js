@@ -324,18 +324,18 @@ if (window.location.pathname === '/profile.html') {
         let html = '<h3 style="color:#f5c211; margin-bottom:15px;">Your Best Scores:</h3>';
         const myBest = data.me.best;
         
-        for (const [quizId, score] of Object.entries(myBest)) {
-          // Find the quiz title
-          const quiz = data.quizzes.find(q => q.id === quizId);
-          const title = quiz ? quiz.title : 'Unknown Quiz';
-          
-          html += `
-            <div class="score-card">
-              <span class="score-title">${title}</span>
-              <span class="score-points">${score} pts</span>
-            </div>
-          `;
-        }
+         for (const [quizId, scoreData] of Object.entries(myBest)) {
+            // Find the quiz title
+            const quiz = data.quizzes.find(q => q.id === quizId);
+            const title = quiz ? quiz.title : 'Unknown Quiz';
+            
+            html += `
+              <div class="score-card">
+                <span class="score-title">${title}</span>
+                <span class="score-points">${scoreData.correct || scoreData.points || 0} pts</span>
+              </div>
+            `;
+          }
         list.innerHTML = html;
       })
       .catch(err => {
