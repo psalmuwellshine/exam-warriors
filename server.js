@@ -18,7 +18,7 @@ const SESSION_HOURS = 12;
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
 const MAX_BODY_BYTES = 18 * 1024 * 1024;
 const KINDS = ['notes', 'pq', 'slides', 'other'];
-const PUBLIC_DIR = path.resolve(__dirname, 'public');
+const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const FILE_TYPES = {
   'application/pdf': { inline: true },
@@ -180,6 +180,48 @@ async function main() {
   }
 
   /* ----- public API ----- */
+    // --- User Authentication Routes ---
+  
+  route('POST', '/api/register', {}, async (req, res, ctx) => {
+    const { username, password } = ctx.body || {};
+    if (!username || !password) throw new HttpError(400, 'Username and password required.');
+    
+    const users = await store.list('users');
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+      throw new HttpError(400, 'Username already taken.');
+    }
+    
+    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+    
+    const newUser = { 
+      id: crypto.randomBytes(8).toString('hex'), 
+      username, 
+      password: hashedPassword,
+      createdAt: Date.now()
+    };
+    await store.put('users', newUser);
+    
+    send(res, 200, { message: 'Registration successful! You can now log in.' });
+  });
+
+  route('POST', '/api/login', {}, async (req, res, ctx) => {
+    const { username, password } = ctx.body || {};
+    if (!username || !password) throw new HttpError(400, 'Username and password required.');
+    
+    const users = await store.list('users');
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    
+    if (!user) throw new HttpError(401, 'Invalid username or password.');
+    
+    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+    if (user.password !== hashedPassword) throw new HttpError(401, 'Invalid username or password.');
+    
+    send(res, 200, { 
+      message: 'Login successful!', 
+      user: { id: user.id, username: user.username } 
+    });
+  });
+
   route('GET', '/api/state', {}, async (req, res, ctx) => {
     const [materials, quizzes, scores, notice] = await Promise.all([
       store.list('materials'), store.list('quizzes'), store.list('scores'), store.get('settings', 'notice'),
