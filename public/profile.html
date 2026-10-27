@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>My Profile - Exam Warriors</title>
+  <link rel="icon" href="/logo.png">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;900&display=swap">
+  <link rel="stylesheet" href="/style.css">
+  
+  <style>
+    .profile-container { max-width: 600px !important; margin: 40px auto !important; padding: 30px !important; background: rgba(255, 255, 255, 0.05) !important; border-radius: 8px !important; border: 1px solid rgba(255,255,255,0.1) !important; }
+    .profile-container h2 { text-align: center !important; margin-bottom: 25px !important; color: #fff !important; }
+    .score-card { background: rgba(0,0,0,0.3); padding: 15px; margin-bottom: 10px; border-radius: 6px; border-left: 4px solid #f5c211; display: flex; justify-content: space-between; align-items: center; }
+    .score-title { font-weight: bold; color: #fff; }
+    .score-points { color: #f5c211; font-size: 1.2em; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <header class="band gut">
+    <div class="in head">
+      <div class="brand">
+        <img class="logo" src="/logo.png" alt="Exam Warriors logo">
+        <div><span class="wm">Exam Warriors</span></div>
+      </div>
+      <nav><a href="/" style="color: #f5c211; font-weight: bold; text-decoration: none;">Back to Home</a></nav>
+    </div>
+  </header>
+
+  <main class="gut">
+    <div class="profile-container">
+      <h2 id="welcome-text">Loading Profile...</h2>
+      
+      <div id="scores-list">
+        <!-- Scores will be injected here -->
+      </div>
+    </div>
+  </main>
+
+  <!-- We load app.js first so we can use its functions, then run our script -->
+  <script src="/app.js"></script>
+  
+  <script>
+    // Wait for the page to load
+    window.addEventListener('DOMContentLoaded', () => {
+      const userStr = localStorage.getItem('examWarriorUser');
+      
+      if (!userStr) {
+        // If no one is logged in, kick them back to the login page
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const user = JSON.parse(userStr);
+      document.getElementById('welcome-text').textContent = `Welcome, ${user.username}!`;
+      
+      // Fetch their specific data from the server using the ?device= query trick
+      fetch(`/api/state?device=${user.id}`)
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById('scores-list');
+          
+          if (!data.me || !data.me.best || Object.keys(data.me.best).length === 0) {
+            list.innerHTML = '<p style="text-align:center; color:#ccc;">You haven\'t taken any quizzes yet!</p>';
+            return;
+          }
+
+          let html = '<h3 style="color:#f5c211; margin-bottom:15px;">Your Best Scores:</h3>';
+          
+          // Loop through the best scores
+          for (const [quizId, score] of Object.entries(data.me.best)) {
+            // Try to find the quiz title from the data
+            const quiz = data.quizzes.find(q => q.id === quizId);
+            const title = quiz ? quiz.title : 'Unknown Quiz';
+            
+            html += `
+              <div class="score-card">
+                <span class="score-title">${title}</span>
+                <span class="score-points">${score} pts</span>
+              </div>
+            `;
+          }
+          
+          list.innerHTML = html;
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById('scores-list').innerHTML = '<p style="color:red; text-align:center;">Failed to load scores.</p>';
+        });
+    });
+  </script>
+</body>
+</html>

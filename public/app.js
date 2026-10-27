@@ -153,7 +153,9 @@
     renderQuizzes();
     var answers = r.quiz.questions.map(function () { return -1; });
     r.log.forEach(function (l) { answers[l.i] = l.k; });
-    api('POST', '/api/scores', { deviceId: deviceId, quizId: r.quiz.id, answers: answers }).then(function () {
+    const loggedInUser = JSON.parse(localStorage.getItem('examWarriorUser'));
+    const userId = loggedInUser ? loggedInUser.id : deviceId;
+    api('POST', '/api/scores', { userId: userId, quizId: r.quiz.id, answers: answers }).then(function () {
       r.save = 'saved';
       return refresh(true);
     }).catch(function () { r.save = 'failed'; }).then(function () { if (run === r) renderQuizzes(); });
@@ -252,7 +254,7 @@ if (loggedInUser) {
   const user = JSON.parse(loggedInUser);
   if (authBtn) {
     authBtn.textContent = 'Hi, ' + user.username;
-    authBtn.href = '#'; 
+    authBtn.href = '/profile.html'; 
     authBtn.style.color = '#fff';
   }
   if (logoutBtn) {
