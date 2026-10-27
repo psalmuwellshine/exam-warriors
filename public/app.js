@@ -192,11 +192,32 @@
 
   /* ---------- events ---------- */
   function setView(v) {
-    if (VIEWS.indexOf(v) < 0) v = 'library';
-    const targetView = document.getElementById('v-' + v);
-    
-    try { history.replaceState(null, '', '#' + v); } catch (e) { /* ignore */ }
-    if (v === 'leaderboard' && S.loaded) refresh(true);
+  // If the view doesn't exist, default to library
+  if (VIEWS.indexOf(v) < 0) v = 'library';
+  
+  // Loop through all views and hide them, then show the active one
+  VIEWS.forEach(function (name) {
+    const targetView = document.getElementById('v-' + name);
+    if (targetView) {
+      targetView.hidden = (name !== v);
+    }
+  });
+
+  // Update the tab buttons (highlight the active one)
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function (tab) {
+    if (tab.dataset.v === v) {
+      tab.setAttribute('aria-selected', 'true');
+    } else {
+      tab.setAttribute('aria-selected', 'false');
+    }
+  });
+
+  // Update the URL hash (e.g., #quizzes)
+  try { history.replaceState(null, '', '#' + v); } catch (e) { /* ignore */ }
+  
+  // Refresh leaderboard if needed
+  if (v === 'leaderboard' && S.loaded) refresh(true);
   }
   document.addEventListener('click', function (e) {
     var chip = e.target.closest('#chips .chip');
