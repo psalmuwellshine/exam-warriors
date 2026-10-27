@@ -4,10 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Login - Exam Warriors</title>
-  <meta name="theme-color" content="#7A1414">
   <link rel="icon" href="/logo.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;900&display=swap">
   <link rel="stylesheet" href="/style.css">
   
@@ -16,13 +13,14 @@
     .auth-container h2 { text-align: center !important; margin-bottom: 25px !important; color: #fff !important; }
     .form-group { margin-bottom: 20px !important; display: flex !important; flex-direction: column !important; }
     .form-group label { display: block !important; margin-bottom: 8px !important; font-weight: bold !important; color: #f5c211 !important; font-size: 0.9em !important; }
-    .form-group input { width: 100% !important; padding: 12px !important; border-radius: 4px !important; border: 1px solid #555 !important; background: #222 !important; color: #fff !important; font-family: inherit !important; font-size: 1em !important; box-sizing: border-box !important; height: auto !important; }
+    .form-group input { width: 100% !important; padding: 12px !important; border-radius: 4px !important; border: 1px solid #555 !important; background: #222 !important; color: #fff !important; font-family: inherit !important; font-size: 1em !important; box-sizing: border-box !important; }
     .form-group input:focus { outline: none !important; border-color: #f5c211 !important; }
-    .auth-btn { width: 100% !important; padding: 12px !important; background: #f5c211 !important; color: #000 !important; font-weight: bold !important; font-size: 1em !important; border: none !important; border-radius: 4px !important; cursor: pointer !important; margin-top: 10px !important; transition: background 0.2s !important; height: auto !important; }
-    .auth-btn:hover { background: #e0b000 !important; }
-    .toggle-text { text-align: center !important; margin-top: 20px !important; font-size: 0.9em !important; color: #ccc !important; }
+    .auth-btn { width: 100% !important; padding: 12px !important; background: #f5c211 !important; color: #000 !important; font-weight: bold !important; font-size: 1em !important; border: none !important; border-radius: 4px !important; cursor: pointer !important; margin-top: 10px !important; }
+    .toggle-text { text-align: center !important; margin-top: 20px !important; color: #ccc !important; }
+    .toggle-btn { background: transparent !important; border: 1px solid #f5c211 !important; color: #f5c211 !important; padding: 8px 20px !important; cursor: pointer !important; border-radius: 4px !important; margin-top: 10px; }
     .error-msg { color: #ff4d4d !important; text-align: center !important; margin-bottom: 15px !important; display: none; background: rgba(255, 77, 77, 0.1) !important; padding: 10px !important; border-radius: 4px !important; }
     .success-msg { color: #4dff4d !important; text-align: center !important; margin-bottom: 15px !important; display: none; background: rgba(77, 255, 77, 0.1) !important; padding: 10px !important; border-radius: 4px !important; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -30,86 +28,107 @@
     <div class="in head">
       <div class="brand">
         <img class="logo" src="/logo.png" alt="Exam Warriors logo">
-        <div>
-          <span class="wm">Exam Warriors</span>
-        </div>
+        <div><span class="wm">Exam Warriors</span></div>
       </div>
-      <nav>
-        <a href="/">Back to Site</a>
-      </nav>
+      <nav><a href="/">Back to Site</a></nav>
     </div>
   </header>
 
   <main class="gut">
     <div class="auth-container">
-      <h2 id="form-title">Login</h2>
       
       <div id="error-box" class="error-msg"></div>
       <div id="success-box" class="success-msg"></div>
 
-      <form id="auth-form">
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input type="text" id="username" required autocomplete="username">
+      <!-- LOGIN FORM -->
+      <div id="login-section">
+        <h2>Login</h2>
+        <form id="form-login">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="login-user" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-pass" required>
+          </div>
+          <button type="submit" class="auth-btn">Log In</button>
+        </form>
+        <div class="toggle-text">
+          <p>Don't have an account?</p>
+          <button type="button" id="show-register" class="toggle-btn">Register here</button>
         </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" required autocomplete="current-password">
-        </div>
-        <button type="submit" class="auth-btn" id="submit-btn">Log In</button>
-      </form>
-
-      <div class="toggle-text">
-        <span id="toggle-msg">Don't have an account?</span> 
-        <br><br>
-        <button type="button" id="toggle-link" class="auth-btn" style="background: transparent !important; border: 1px solid #f5c211 !important; color: #f5c211 !important; padding: 8px 20px !important; width: auto !important;">Register here</button>
       </div>
+
+      <!-- REGISTER FORM -->
+      <div id="register-section" class="hidden">
+        <h2>Create an Account</h2>
+        <form id="form-register">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="reg-user" required>
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="reg-pass" required>
+          </div>
+          <button type="submit" class="auth-btn">Register</button>
+        </form>
+        <div class="toggle-text">
+          <p>Already have an account?</p>
+          <button type="button" id="show-login" class="toggle-btn">Login here</button>
+        </div>
+      </div>
+
     </div>
   </main>
 
   <script>
-    let isLoginMode = true;
-    const form = document.getElementById('auth-form');
-    const title = document.getElementById('form-title');
-    const submitBtn = document.getElementById('submit-btn');
-    const toggleLink = document.getElementById('toggle-link');
-    const toggleMsg = document.getElementById('toggle-msg');
+    const loginSection = document.getElementById('login-section');
+    const registerSection = document.getElementById('register-section');
     const errorBox = document.getElementById('error-box');
     const successBox = document.getElementById('success-box');
 
-    toggleLink.addEventListener('click', (e) => {
+    // Switch to Register mode
+    document.getElementById('show-register').addEventListener('click', (e) => {
       e.preventDefault();
-      isLoginMode = !isLoginMode;
       errorBox.style.display = 'none';
       successBox.style.display = 'none';
-      form.reset();
-
-      if (isLoginMode) {
-        title.textContent = 'Login';
-        submitBtn.textContent = 'Log In';
-        toggleMsg.textContent = "Don't have an account?";
-        toggleLink.textContent = 'Register here';
-      } else {
-        title.textContent = 'Create an Account';
-        submitBtn.textContent = 'Register';
-        toggleMsg.textContent = "Already have an account?";
-        toggleLink.textContent = 'Login here';
-      }
+      loginSection.classList.add('hidden');
+      registerSection.classList.remove('hidden');
     });
 
-    form.addEventListener('submit', async (e) => {
+    // Switch to Login mode
+    document.getElementById('show-login').addEventListener('click', (e) => {
       e.preventDefault();
       errorBox.style.display = 'none';
       successBox.style.display = 'none';
+      registerSection.classList.add('hidden');
+      loginSection.classList.remove('hidden');
+    });
 
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-      const endpoint = isLoginMode ? '/api/login' : '/api/register';
+    // Handle Login Submission
+    document.getElementById('form-login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('login-user').value;
+      const password = document.getElementById('login-pass').value;
+      await submitAuth('/api/login', username, password);
+    });
+
+    // Handle Register Submission
+    document.getElementById('form-register').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('reg-user').value;
+      const password = document.getElementById('reg-pass').value;
+      await submitAuth('/api/register', username, password);
+    });
+
+    // The actual connection to the backend
+    async function submitAuth(endpoint, username, password) {
+      errorBox.style.display = 'none';
+      successBox.style.display = 'none';
 
       try {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Please wait...';
-
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -118,28 +137,24 @@
 
         const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Something went wrong');
-        }
+        if (!response.ok) throw new Error(data.error || 'Something went wrong');
 
         successBox.textContent = data.message;
         successBox.style.display = 'block';
         
-        if (isLoginMode) {
+        if (endpoint === '/api/login') {
           localStorage.setItem('examWarriorUser', JSON.stringify(data.user));
           setTimeout(() => { window.location.href = '/'; }, 1500); 
         } else {
-          setTimeout(() => { toggleLink.click(); }, 1500);
+          // If registered successfully, switch to login tab
+          setTimeout(() => { document.getElementById('show-login').click(); }, 1500);
         }
 
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.style.display = 'block';
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = isLoginMode ? 'Log In' : 'Register';
       }
-    });
+    }
   </script>
 </body>
 </html>
