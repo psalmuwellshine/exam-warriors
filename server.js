@@ -397,6 +397,21 @@ async function main() {
     send(res, 200, { ok: true });
   });
 
+  route('GET', '/api/admin/users', { admin: true }, async (req, res, ctx) => {
+  const users = await store.list('users');
+  const scores = await store.list('scores');
+  
+  const studentData = users.map(u => {
+    const scoreRecord = scores.find(s => s.id === u.id) || {};
+    return {
+      username: u.username,
+      bestScores: scoreRecord.best || {}
+    };
+  });
+
+  send(res, 200, { students: studentData });
+  });
+
   /* ----- dispatcher ----- */
   const server = http.createServer(async (req, res) => {
     try {
