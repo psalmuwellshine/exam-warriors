@@ -76,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const showLoginFromForgotBtn = document.getElementById('show-login-from-forgot');
   const formForgot = document.getElementById('form-forgot');
   
-  // Grab all the sections
   const loginSection = document.getElementById('login-section');
   const registerSection = document.getElementById('register-section');
   const forgotSection = document.getElementById('forgot-section');
@@ -86,14 +85,12 @@ document.addEventListener('DOMContentLoaded', () => {
     showForgotBtn.addEventListener('click', (e) => {
       e.preventDefault();
       
-      // Hide the box containing login/register
-      const authContainer = document.querySelector('.auth-container');
-      if (authContainer) authContainer.style.display = 'none';
+      // Hide only the login and register forms
+      if (loginSection) loginSection.style.display = 'none';
+      if (registerSection) registerSection.style.display = 'none';
       
-      // Show the forgot form (which is now outside the box)
+      // Show the forgot form
       if (forgotSection) forgotSection.style.display = 'block';
-      
-      // Hide old messages
       if (forgotMsg) forgotMsg.style.display = 'none';
     });
   }
@@ -105,13 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Hide the forgot form
       if (forgotSection) forgotSection.style.display = 'none';
       
-      // Show the main box again
-      const authContainer = document.querySelector('.auth-container');
-      if (authContainer) authContainer.style.display = 'block';
-      
-      // Make sure the login form is the one showing
+      // Show the login form again
       if (loginSection) loginSection.style.display = 'block';
-      if (registerSection) registerSection.style.display = 'none';
     });
   }
 
