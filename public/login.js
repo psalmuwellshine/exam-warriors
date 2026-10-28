@@ -72,14 +72,15 @@
 
 // --- NEW: Forgot Password Logic ---
 document.addEventListener('DOMContentLoaded', () => {
-  const showForgotBtn = document.getElementById('show-forgot');
-  const showLoginFromForgotBtn = document.getElementById('show-login-from-forgot');
-  const formForgot = document.getElementById('form-forgot');
-  
+  // Grab ALL elements here so they exist when the page loads
   const loginSection = document.getElementById('login-section');
   const registerSection = document.getElementById('register-section');
   const forgotSection = document.getElementById('forgot-section');
   const forgotMsg = document.getElementById('forgot-msg');
+  
+  const showForgotBtn = document.getElementById('show-forgot');
+  const showLoginFromForgotBtn = document.getElementById('show-login-from-forgot');
+  const formForgot = document.getElementById('form-forgot');
 
   if (showForgotBtn) {
     showForgotBtn.addEventListener('click', (e) => {
