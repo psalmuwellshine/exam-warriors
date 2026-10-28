@@ -228,6 +228,12 @@
     var a = t.dataset.act, id = t.dataset.id;
     if (a === 'toggle') { openNotes[id] = !openNotes[id]; renderLibrary(); return; }
     if (a === 'start') {
+      // NEW: Require login to start a quiz
+      if (!localStorage.getItem('examWarriorUser')) {
+        alert('You must be logged in to take a quiz!');
+        window.location.href = '/login.html';
+        return;
+      }
       var q = S.quizzes.filter(function (x) { return x.id === id; })[0]; if (!q) return;
       run = { quiz: q, i: 0, picked: null, correct: 0, log: [], done: false, save: '' };
       setView('quizzes'); renderQuizzes(); window.scrollTo(0, 0); return;
