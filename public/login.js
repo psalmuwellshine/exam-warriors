@@ -71,80 +71,92 @@
     }
 
 // --- NEW: Forgot Password Logic ---
-const forgotSection = document.getElementById('forgot-section');
-const showForgotBtn = document.getElementById('show-forgot');
-const showLoginFromForgotBtn = document.getElementById('show-login-from-forgot');
-const formForgot = document.getElementById('form-forgot');
-const forgotMsg = document.getElementById('forgot-msg');
+document.addEventListener('DOMContentLoaded', () => {
+  const forgotSection = document.getElementById('forgot-section');
+  const showForgotBtn = document.getElementById('show-forgot');
+  const showLoginFromForgotBtn = document.getElementById('show-login-from-forgot');
+  const formForgot = document.getElementById('form-forgot');
+  const forgotMsg = document.getElementById('forgot-msg');
 
-if (showForgotBtn) {
-  showForgotBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    loginSection.style.display = 'none';
-    registerSection.style.display = 'none';
-    forgotSection.style.display = 'block';
-    
-    // Hide any old messages
-    errorBox.style.display = 'none';
-    successBox.style.display = 'none';
-    forgotMsg.style.display = 'none';
-  });
-}
-
-if (showLoginFromForgotBtn) {
-  showLoginFromForgotBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    forgotSection.style.display = 'none';
-    loginSection.style.display = 'block';
-  });
-}
-
-if (formForgot) {
-  formForgot.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const username = document.getElementById('forgot-user').value;
-    const recoveryPhrase = document.getElementById('forgot-phrase').value;
-    const newPassword = document.getElementById('forgot-new-pass').value;
-    const btn = document.getElementById('forgot-btn');
-
-    btn.textContent = 'Resetting...';
-    btn.disabled = true;
-    forgotMsg.style.display = 'none';
-
-    try {
-      const response = await fetch('/api/user/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, recoveryPhrase, newPassword })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || 'Failed to reset password');
-
-      // Success!
-      forgotMsg.textContent = data.message;
-      forgotMsg.style.color = '#4dff4d';
-      forgotMsg.style.background = 'rgba(77, 255, 77, 0.1)';
-      forgotMsg.style.display = 'block';
+  // Safety check: only run if the elements exist on the page
+  if (showForgotBtn && forgotSection) {
+    showForgotBtn.addEventListener('click', (e) => {
+      e.preventDefault();
       
-      // Clear the form
-      formForgot.reset();
+      // Hide the other forms safely
+      const loginSection = document.getElementById('login-section');
+      const registerSection = document.getElementById('register-section');
+      
+      if (loginSection) loginSection.style.display = 'none';
+      if (registerSection) registerSection.style.display = 'none';
+      
+      // Show the forgot form
+      forgotSection.style.display = 'block';
+      
+      // Hide old messages
+      const errorBox = document.getElementById('error-box');
+      const successBox = document.getElementById('success-box');
+      if (errorBox) errorBox.style.display = 'none';
+      if (successBox) successBox.style.display = 'none';
+      if (forgotMsg) forgotMsg.style.display = 'none';
+    });
+  }
 
-      // Automatically switch back to login after 2 seconds
-      setTimeout(() => {
-        showLoginFromForgotBtn.click();
-      }, 2000);
+  if (showLoginFromForgotBtn && forgotSection) {
+    showLoginFromForgotBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      forgotSection.style.display = 'none';
+      
+      const loginSection = document.getElementById('login-section');
+      if (loginSection) loginSection.style.display = 'block';
+    });
+  }
 
-    } catch (err) {
-      forgotMsg.textContent = err.message;
-      forgotMsg.style.color = '#ff4d4d';
-      forgotMsg.style.background = 'rgba(255, 77, 77, 0.1)';
-      forgotMsg.style.display = 'block';
-    } finally {
-      btn.textContent = 'Reset Password';
-      btn.disabled = false;
-    }
-  });
-}
+  if (formForgot) {
+    formForgot.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('forgot-user').value;
+      const recoveryPhrase = document.getElementById('forgot-phrase').value;
+      const newPassword = document.getElementById('forgot-new-pass').value;
+      const btn = document.getElementById('forgot-btn');
+
+      btn.textContent = 'Resetting...';
+      btn.disabled = true;
+      if (forgotMsg) forgotMsg.style.display = 'none';
+
+      try {
+        const response = await fetch('/api/user/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, recoveryPhrase, newPassword })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Failed to reset password');
+
+        // Success!
+        forgotMsg.textContent = data.message;
+        forgotMsg.style.color = '#4dff4d';
+        forgotMsg.style.background = 'rgba(77, 255, 77, 0.1)';
+        forgotMsg.style.display = 'block';
+        
+        formForgot.reset();
+
+        setTimeout(() => {
+          if (showLoginFromForgotBtn) showLoginFromForgotBtn.click();
+        }, 2000);
+
+      } catch (err) {
+        forgotMsg.textContent = err.message;
+        forgotMsg.style.color = '#ff4d4d';
+        forgotMsg.style.background = 'rgba(255, 77, 77, 0.1)';
+        forgotMsg.style.display = 'block';
+      } finally {
+        btn.textContent = 'Reset Password';
+        btn.disabled = false;
+      }
+    });
+  }
+});
