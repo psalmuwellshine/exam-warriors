@@ -35,6 +35,27 @@
         <!-- Scores will be injected here -->
       </div>
     </div>
+
+    <!-- NEW: Account Settings Form -->
+<div style="margin-top: 40px; border-top: 1px solid #333; padding-top: 20px;">
+  <h3 style="color: #fff; margin-bottom: 15px;">Account Settings</h3>
+  
+  <div id="update-msg" style="display: none; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;"></div>
+
+  <form id="update-form">
+    <div class="form-group" style="margin-bottom: 15px; display: flex; flex-direction: column;">
+      <label style="color: #f5c211; margin-bottom: 5px; font-weight: bold;">New Username (optional)</label>
+      <input type="text" id="new-username" style="padding: 10px; border-radius: 4px; border: 1px solid #555; background: #222; color: #fff;" placeholder="Leave blank to keep current">
+    </div>
+    
+    <div class="form-group" style="margin-bottom: 15px; display: flex; flex-direction: column;">
+      <label style="color: #f5c211; margin-bottom: 5px; font-weight: bold;">New Password (optional)</label>
+      <input type="password" id="new-password" style="padding: 10px; border-radius: 4px; border: 1px solid #555; background: #222; color: #fff;" placeholder="Leave blank to keep current">
+    </div>
+    
+    <button type="submit" class="auth-btn" id="update-btn" style="background: #f5c211; color: #000; padding: 10px 20px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Update Profile</button>
+  </form>
+</div>
   </main>
 
   <!-- We load app.js first so we can use its functions, then run our script -->
