@@ -444,6 +444,34 @@ async function main() {
   });
 });
 
+  route('POST', '/api/user/reset-password', {}, async (req, res, ctx) => {
+  const { username, recoveryPhrase, newPassword } = ctx.body;
+  
+  if (!username || !recoveryPhrase || !newPassword) {
+    throw new HttpError(400, 'Please fill in all fields.');
+  }
+
+  // 1. Find the user by username
+  const users = await store.list('users');
+  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  
+  if (!user) {
+    throw new HttpError(404, 'User not found.');
+  }
+
+  // 2. Check the recovery phrase (For simplicity, we will use the word "warrior" for now)
+  // In a real app, this would be a question saved during registration.
+  if (recoveryPhrase.toLowerCase() !== 'warrior') {
+    throw new HttpError(401, 'Incorrect recovery phrase.');
+  }
+
+  // 3. Hash the new password and save it
+  user.password = crypto.createHash('sha256').update(newPassword).digest('hex');
+  await store.put('users', user);
+
+  send(res, 200, { message: 'Password reset successfully! You can now log in.' });
+});
+
   /* ----- dispatcher ----- */
   const server = http.createServer(async (req, res) => {
     try {
