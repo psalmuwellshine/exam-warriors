@@ -28,6 +28,28 @@
 
 <main class="gut">
   <div class="in" id="app"></div>
+   <!-- NEW: Registered Students Section -->
+   <section style="margin-top: 40px; border-top: 1px solid #333; padding-top: 20px;">
+      <h3>Registered Students</h3>
+      <p class="sub">View all users who have created an account and their best scores.</p>
+      
+      <button id="load-students-btn" class="btn" style="margin-bottom: 20px;">Load Students</button>
+      
+      <div id="students-table-container" style="display:none; overflow-x: auto;">
+        <table style="width: 100%; text-align: left; border-collapse: collapse; color: #fff;">
+          <thead>
+            <tr style="border-bottom: 1px solid #f5c211;">
+              <th style="padding: 10px;">Username</th>
+              <th style="padding: 10px;">Quizzes Taken</th>
+              <th style="padding: 10px;">Total Points</th>
+            </tr>
+          </thead>
+          <tbody id="students-table-body">
+            <!-- Rows will be injected here by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
 </main>
 
 <footer class="gut"><div class="in"><a href="/" style="color:inherit">Back to the student site</a></div></footer>
