@@ -83,11 +83,11 @@ if (showForgotBtn) {
     e.preventDefault();
     
     // Hide login and register
-    if (loginSection) loginSection.style.display = 'none';
-    if (registerSection) registerSection.style.display = 'none';
+    if (loginSection) loginSection.style.setProperty('display', 'none', 'important');
+    if (registerSection) registerSection.style.setProperty('display', 'none', 'important');
     
     // Show forgot
-    if (forgotSection) forgotSection.style.display = 'block';
+    if (forgotSection) forgotSection.style.setProperty('display', 'block', 'important');
     
     // Hide messages
     if (errorBox) errorBox.style.display = 'none';
@@ -101,10 +101,10 @@ if (showLoginFromForgotBtn) {
     e.preventDefault();
     
     // Hide forgot
-    if (forgotSection) forgotSection.style.display = 'none';
+    if (forgotSection) forgotSection.style.setProperty('display', 'none', 'important');
     
     // Show login
-    if (loginSection) loginSection.style.display = 'block';
+    if (loginSection) loginSection.style.setProperty('display', 'block', 'important');
   });
 }
 
