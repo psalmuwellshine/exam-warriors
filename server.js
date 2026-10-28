@@ -412,6 +412,38 @@ async function main() {
   send(res, 200, { students: studentData });
   });
 
+  route('POST', '/api/user/update', {}, async (req, res, ctx) => {
+  const { userId, newUsername, newPassword } = ctx.body;
+  
+  if (!userId) throw new HttpError(400, 'User not found.');
+  
+  // 1. Find the user in the database
+  const user = await store.get('users', userId);
+  if (!user) throw new HttpError(404, 'User does not exist.');
+
+  // 2. Check if the new username is already taken by someone else
+  if (newUsername && newUsername !== user.username) {
+    const allUsers = await store.list('users');
+    if (allUsers.find(u => u.username.toLowerCase() === newUsername.toLowerCase())) {
+      throw new HttpError(400, 'That username is already taken.');
+    }
+    user.username = newUsername;
+  }
+
+  // 3. If they provided a new password, hash it and update it
+  if (newPassword) {
+    user.password = crypto.createHash('sha256').update(newPassword).digest('hex');
+  }
+
+  // 4. Save the updated user
+  await store.put('users', user);
+  
+  send(res, 200, { 
+    message: 'Profile updated successfully!', 
+    user: { id: user.id, username: user.username } 
+  });
+});
+
   /* ----- dispatcher ----- */
   const server = http.createServer(async (req, res) => {
     try {
