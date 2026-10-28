@@ -72,43 +72,46 @@
 
 // --- NEW: Forgot Password Logic ---
 document.addEventListener('DOMContentLoaded', () => {
-  const forgotSection = document.getElementById('forgot-section');
   const showForgotBtn = document.getElementById('show-forgot');
   const showLoginFromForgotBtn = document.getElementById('show-login-from-forgot');
   const formForgot = document.getElementById('form-forgot');
+  
+  // Grab all the sections
+  const loginSection = document.getElementById('login-section');
+  const registerSection = document.getElementById('register-section');
+  const forgotSection = document.getElementById('forgot-section');
   const forgotMsg = document.getElementById('forgot-msg');
 
-  // Safety check: only run if the elements exist on the page
-  if (showForgotBtn && forgotSection) {
+  if (showForgotBtn) {
     showForgotBtn.addEventListener('click', (e) => {
       e.preventDefault();
       
-      // Hide the other forms safely
-      const loginSection = document.getElementById('login-section');
-      const registerSection = document.getElementById('register-section');
+      // Hide the box containing login/register
+      const authContainer = document.querySelector('.auth-container');
+      if (authContainer) authContainer.style.display = 'none';
       
-      if (loginSection) loginSection.style.display = 'none';
-      if (registerSection) registerSection.style.display = 'none';
-      
-      // Show the forgot form
-      forgotSection.style.display = 'block';
+      // Show the forgot form (which is now outside the box)
+      if (forgotSection) forgotSection.style.display = 'block';
       
       // Hide old messages
-      const errorBox = document.getElementById('error-box');
-      const successBox = document.getElementById('success-box');
-      if (errorBox) errorBox.style.display = 'none';
-      if (successBox) successBox.style.display = 'none';
       if (forgotMsg) forgotMsg.style.display = 'none';
     });
   }
 
-  if (showLoginFromForgotBtn && forgotSection) {
+  if (showLoginFromForgotBtn) {
     showLoginFromForgotBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      forgotSection.style.display = 'none';
       
-      const loginSection = document.getElementById('login-section');
+      // Hide the forgot form
+      if (forgotSection) forgotSection.style.display = 'none';
+      
+      // Show the main box again
+      const authContainer = document.querySelector('.auth-container');
+      if (authContainer) authContainer.style.display = 'block';
+      
+      // Make sure the login form is the one showing
       if (loginSection) loginSection.style.display = 'block';
+      if (registerSection) registerSection.style.display = 'none';
     });
   }
 
