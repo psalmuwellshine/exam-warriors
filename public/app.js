@@ -350,3 +350,77 @@ if (window.location.pathname === '/profile.html') {
       });
   }
 }
+
+// --- NEW: Update Profile Logic ---
+document.addEventListener('DOMContentLoaded', () => {
+  const updateForm = document.getElementById('update-form');
+  
+  if (updateForm) {
+    updateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const userStr = localStorage.getItem('examWarriorUser');
+      if (!userStr) return;
+      
+      const user = JSON.parse(userStr);
+      const newUsername = document.getElementById('new-username').value.trim();
+      const newPassword = document.getElementById('new-password').value;
+      const msgBox = document.getElementById('update-msg');
+      const btn = document.getElementById('update-btn');
+
+      // If both fields are empty, do nothing
+      if (!newUsername && !newPassword) {
+        msgBox.textContent = 'Please enter a new username or password.';
+        msgBox.style.color = '#ff4d4d';
+        msgBox.style.background = 'rgba(255, 77, 77, 0.1)';
+        msgBox.style.display = 'block';
+        return;
+      }
+
+      btn.textContent = 'Updating...';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch('/api/user/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            userId: user.id, 
+            newUsername: newUsername || null, 
+            newPassword: newPassword || null 
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Failed to update');
+
+        // Success!
+        msgBox.textContent = data.message;
+        msgBox.style.color = '#4dff4d';
+        msgBox.style.background = 'rgba(77, 255, 77, 0.1)';
+        msgBox.style.display = 'block';
+
+        // Update the local storage with the new username if it changed
+        if (newUsername) {
+          user.username = newUsername;
+          localStorage.setItem('examWarriorUser', JSON.stringify(user));
+          document.getElementById('welcome-text').textContent = `Welcome, ${newUsername}!`;
+        }
+
+        // Clear the inputs
+        document.getElementById('new-username').value = '';
+        document.getElementById('new-password').value = '';
+
+      } catch (err) {
+        msgBox.textContent = err.message;
+        msgBox.style.color = '#ff4d4d';
+        msgBox.style.background = 'rgba(255, 77, 77, 0.1)';
+        msgBox.style.display = 'block';
+      } finally {
+        btn.textContent = 'Update Profile';
+        btn.disabled = false;
+      }
+    });
+  }
+});
