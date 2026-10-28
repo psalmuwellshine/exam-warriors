@@ -1,4 +1,4 @@
-function () {
+(function () {
   'use strict';
   var COURSES = ['MLS206', 'MLS208', 'MBH222', 'PIO214', 'PIO216', 'ANA204', 'ANA206', 'GST212'];
   var KINDS = { notes: 'Notes', pq: 'Past questions', slides: 'Slides', other: 'Other' };
