@@ -4,112 +4,120 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Login - Exam Warriors</title>
+  <meta name="theme-color" content="#7A1414">
   <link rel="icon" href="/logo.png">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;900&display=swap">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Albert+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
   <link rel="stylesheet" href="/style.css">
-  
-  <style>
-    .auth-container { max-width: 400px !important; margin: 40px auto !important; padding: 30px !important; background: rgba(255, 255, 255, 0.05) !important; border-radius: 8px !important; border: 1px solid rgba(255,255,255,0.1) !important; }
-    .auth-container h2 { text-align: center !important; margin-bottom: 25px !important; color: #fff !important; }
-    .form-group { margin-bottom: 20px !important; display: flex !important; flex-direction: column !important; }
-    .form-group label { display: block !important; margin-bottom: 8px !important; font-weight: bold !important; color: #f5c211 !important; font-size: 0.9em !important; }
-    .form-group input { width: 100% !important; padding: 12px !important; border-radius: 4px !important; border: 1px solid #555 !important; background: #222 !important; color: #fff !important; font-family: inherit !important; font-size: 1em !important; box-sizing: border-box !important; }
-    .form-group input:focus { outline: none !important; border-color: #f5c211 !important; }
-    .auth-btn { width: 100% !important; padding: 12px !important; background: #f5c211 !important; color: #000 !important; font-weight: bold !important; font-size: 1em !important; border: none !important; border-radius: 4px !important; cursor: pointer !important; margin-top: 10px !important; }
-    .toggle-text { text-align: center !important; margin-top: 20px !important; color: #ccc !important; }
-    .toggle-btn { background: transparent !important; border: 1px solid #f5c211 !important; color: #f5c211 !important; padding: 8px 20px !important; cursor: pointer !important; border-radius: 4px !important; margin-top: 10px; }
-    .error-msg { color: #ff4d4d !important; text-align: center !important; margin-bottom: 15px !important; display: none; background: rgba(255, 77, 77, 0.1) !important; padding: 10px !important; border-radius: 4px !important; }
-    .success-msg { color: #4dff4d !important; text-align: center !important; margin-bottom: 15px !important; display: none; background: rgba(77, 255, 77, 0.1) !important; padding: 10px !important; border-radius: 4px !important; }
-    .hidden { display: none !important; }
-  </style>
+  <link rel="stylesheet" href="/login.css">
 </head>
 <body>
   <header class="band gut">
     <div class="in head">
       <div class="brand">
         <img class="logo" src="/logo.png" alt="Exam Warriors logo">
-        <div><span class="wm">Exam Warriors</span></div>
+        <div>
+          <span class="wm">Exam Warriors</span>
+          <span class="tagline">Give The Best, Take The Best</span>
+        </div>
       </div>
-      <nav><a href="/">Back to Site</a></nav>
+      <nav><a class="back" href="/">Back to site</a></nav>
     </div>
   </header>
 
   <main class="gut">
     <div class="auth-container">
-      
-      <div id="error-box" class="error-msg"></div>
-      <div id="success-box" class="success-msg"></div>
 
-      <!-- LOGIN FORM -->
-      <div id="login-section" style="display: block;">
-        <h2>Login</h2>
-        <form id="form-login">
+      <div id="error-box" class="msg error-msg" role="alert" hidden></div>
+      <div id="success-box" class="msg success-msg" role="status" hidden></div>
+
+      <!-- LOGIN -->
+      <section id="login-section">
+        <h2>Log in</h2>
+        <p class="lead">Welcome back, warrior.</p>
+        <form id="form-login" novalidate>
           <div class="form-group">
-            <label>Username</label>
-            <input type="text" id="login-user" required>
+            <label for="login-user">Username</label>
+            <input type="text" id="login-user" autocomplete="username" autocapitalize="none" spellcheck="false" required>
           </div>
           <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="login-pass" required>
+            <label for="login-pass">Password</label>
+            <input type="password" id="login-pass" autocomplete="current-password" required>
           </div>
-          <button type="submit" class="auth-btn">Log In</button>
+          <div class="row-between">
+            <label class="check"><input type="checkbox" data-show="login-pass"> Show password</label>
+            <button type="button" id="show-forgot" class="link-btn">Forgot password?</button>
+          </div>
+          <button type="submit" class="auth-btn">Log in</button>
         </form>
         <div class="toggle-text">
           <p>Don't have an account?</p>
-          <button type="button" id="show-register" class="toggle-btn">Register here</button>
-          <br><br>
-          <button type="button" id="show-forgot" style="background: transparent; border: none; color: #ccc; text-decoration: underline; cursor: pointer;">Forgot Password?</button>
+          <button type="button" id="show-register" class="toggle-btn">Create an account</button>
         </div>
-        
-      <!-- REGISTER FORM -->
-      <div id="register-section" style="display: none;">
-        <h2>Create an Account</h2>
-        <form id="form-register">
+      </section>
+
+      <!-- REGISTER -->
+      <section id="register-section" hidden>
+        <h2>Create an account</h2>
+        <p class="lead">Join the warriors. It takes a minute.</p>
+        <form id="form-register" novalidate>
           <div class="form-group">
-            <label>Username</label>
-            <input type="text" id="reg-user" required>
+            <label for="reg-user">Username</label>
+            <input type="text" id="reg-user" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" required>
+            <small>3 to 24 characters: letters, numbers, spaces, dots, dashes or underscores.</small>
           </div>
           <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="reg-pass" required>
+            <label for="reg-pass">Password</label>
+            <input type="password" id="reg-pass" autocomplete="new-password" minlength="6" required>
+            <small>At least 6 characters.</small>
           </div>
-          <button type="submit" class="auth-btn">Register</button>
+          <div class="form-group">
+            <label for="reg-phrase">Recovery phrase</label>
+            <input type="text" id="reg-phrase" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="60" required>
+            <small>A secret word or short phrase only you know. You will need it to reset your password, so remember it.</small>
+          </div>
+          <div class="row-between">
+            <label class="check"><input type="checkbox" data-show="reg-pass"> Show password</label>
+          </div>
+          <button type="submit" class="auth-btn">Create account</button>
         </form>
         <div class="toggle-text">
           <p>Already have an account?</p>
-          <button type="button" id="show-login" class="toggle-btn">Login here</button>
+          <button type="button" id="show-login" class="toggle-btn">Log in</button>
         </div>
-      </div>
+      </section>
 
-      <!-- FORGOT PASSWORD SECTION -->
-      <div id="forgot-section" style="display: none;">
-        <h2>Reset Password</h2>
-        
-        <div id="forgot-msg" style="display: none; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;"></div>
-
-        <form id="form-forgot">
+      <!-- FORGOT PASSWORD -->
+      <section id="forgot-section" hidden>
+        <h2>Reset password</h2>
+        <p class="lead">Enter your username and the recovery phrase you chose when you registered.</p>
+        <form id="form-forgot" novalidate>
           <div class="form-group">
-            <label>Username</label>
-            <input type="text" id="forgot-user" required>
+            <label for="forgot-user">Username</label>
+            <input type="text" id="forgot-user" autocomplete="username" autocapitalize="none" spellcheck="false" required>
           </div>
           <div class="form-group">
-            <label>Recovery Phrase (Hint: warrior)</label>
-            <input type="text" id="forgot-phrase" required>
+            <label for="forgot-phrase">Recovery phrase</label>
+            <input type="text" id="forgot-phrase" autocomplete="off" autocapitalize="none" spellcheck="false" required>
           </div>
           <div class="form-group">
-            <label>New Password</label>
-            <input type="password" id="forgot-new-pass" required>
+            <label for="forgot-new-pass">New password</label>
+            <input type="password" id="forgot-new-pass" autocomplete="new-password" minlength="6" required>
+            <small>At least 6 characters.</small>
           </div>
-          <button type="submit" class="auth-btn" id="forgot-btn">Reset Password</button>
+          <div class="row-between">
+            <label class="check"><input type="checkbox" data-show="forgot-new-pass"> Show password</label>
+          </div>
+          <button type="submit" class="auth-btn" id="forgot-btn">Reset password</button>
         </form>
-        
         <div class="toggle-text">
           <p>Remembered it?</p>
-          <button type="button" id="show-login-from-forgot" class="toggle-btn">Back to Login</button>
+          <button type="button" id="show-login-from-forgot" class="toggle-btn">Back to log in</button>
         </div>
-      </div>
+      </section>
 
-    </div> <!-- This closes auth-container -->
+    </div>
   </main>
 
   <script src="/login.js"></script>
