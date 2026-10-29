@@ -7,7 +7,9 @@ const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
 const path = require('path');
+const { promisify } = require('util');
 const { createStore } = require('./store');
+const scrypt = promisify(crypto.scrypt);
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -44,6 +46,14 @@ const isHttp = (u) => /^https?:\/\/[^\s]+$/i.test(u || '');
 const okCourse = (c) => /^[A-Z0-9]{2,10}$/.test(c || '');
 const okDevice = (d) => typeof d === 'string' && /^[a-z0-9]{16,40}$/.test(d);
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+
+/* Account rules and the per-user recovery phrase.
+   The phrase is stored as a salted scrypt hash, never as plain text. */
+const USERNAME_RE = /^[\p{L}\p{N}][\p{L}\p{N}._ -]{1,22}[\p{L}\p{N}]$/u;
+const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
+const normPhrase = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ');
+const hashPhrase = async (phrase, salt) => (await scrypt(normPhrase(phrase), salt, 32)).toString('hex');
+const NO_SALT = '0'.repeat(32); // used for a dummy check so unknown usernames take as long as real ones
 
 function sign(value) { return crypto.createHmac('sha256', SESSION_SECRET).update(value).digest('hex'); }
 function safeEqual(a, b) {
@@ -153,11 +163,9 @@ function readJson(req) {
 function serveStatic(req, res, pathname) {
   let rel = pathname === '/' ? '/index.html' : pathname;
   if (rel === '/admin') rel = '/admin.html';
+  if (rel === '/login') rel = '/login.html';
   let file = path.normalize(path.join(PUBLIC_DIR, rel));
-  if (!file.startsWith(PUBLIC_DIR)) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
-        if (pathname === '/login.html' || pathname === '/login.js') {
-      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;");
-    }
+  if (!file.startsWith(PUBLIC_DIR + path.sep)) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
   fs.readFile(file, (err, buf) => {
     if (err) {
       if (file.endsWith('.js')) {
@@ -188,32 +196,42 @@ async function main() {
   /* ----- public API ----- */
     // --- User Authentication Routes ---
   
-  route('POST', '/api/register', {}, async (req, res, ctx) => {
-    const { username, password } = ctx.body || {};
+  route('POST', '/api/register', { limit: ['register', 20, 60 * 60 * 1000] }, async (req, res, ctx) => {
+    const b = ctx.body || {};
+    const username = str(b.username, 60).trim().replace(/\s+/g, ' ');
+    const password = str(b.password, 100);
+    const phrase = normPhrase(str(b.recoveryPhrase, 100));
     if (!username || !password) throw new HttpError(400, 'Username and password required.');
-    
+    if (!USERNAME_RE.test(username)) throw new HttpError(400, 'Username must be 3 to 24 characters: letters, numbers, spaces, dots, dashes or underscores.');
+    if (password.length < 6) throw new HttpError(400, 'Password must be at least 6 characters.');
+    if (phrase.length < 4 || phrase.length > 60) throw new HttpError(400, 'Recovery phrase must be 4 to 60 characters.');
+
     const users = await store.list('users');
     if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
       throw new HttpError(400, 'Username already taken.');
     }
-    
+
     const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
-    
-    const newUser = { 
-      id: crypto.randomBytes(8).toString('hex'), 
-      username, 
+    const salt = crypto.randomBytes(16).toString('hex');
+
+    const newUser = {
+      id: crypto.randomBytes(8).toString('hex'),
+      username,
       password: hashedPassword,
+      recovery: { salt, hash: await hashPhrase(phrase, salt) },
       createdAt: Date.now()
     };
     await store.put('users', newUser);
-    
-    send(res, 200, { message: 'Registration successful! You can now log in.' });
+
+    send(res, 200, { message: 'Registration successful! You can now log in.', username });
   });
 
-  route('POST', '/api/login', {}, async (req, res, ctx) => {
-    const { username, password } = ctx.body || {};
+  route('POST', '/api/login', { limit: ['userlogin', 40, 15 * 60 * 1000] }, async (req, res, ctx) => {
+    const b = ctx.body || {};
+    const username = str(b.username, 60).trim();
+    const password = str(b.password, 100);
     if (!username || !password) throw new HttpError(400, 'Username and password required.');
-    
+
     const users = await store.list('users');
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     
@@ -444,32 +462,37 @@ async function main() {
   });
 });
 
-  route('POST', '/api/user/reset-password', {}, async (req, res, ctx) => {
-  const { username, recoveryPhrase, newPassword } = ctx.body;
-  
+  route('POST', '/api/user/reset-password', { limit: ['reset', 10, 15 * 60 * 1000] }, async (req, res, ctx) => {
+  const b = ctx.body || {};
+  const username = str(b.username, 60).trim();
+  const recoveryPhrase = str(b.recoveryPhrase, 100);
+  const newPassword = str(b.newPassword, 100);
+
   if (!username || !recoveryPhrase || !newPassword) {
     throw new HttpError(400, 'Please fill in all fields.');
   }
+  if (newPassword.length < 6) throw new HttpError(400, 'New password must be at least 6 characters.');
 
   // 1. Find the user by username
   const users = await store.list('users');
   const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-  
-  if (!user) {
-    throw new HttpError(404, 'User not found.');
-  }
+  const BAD = 'Username or recovery phrase is incorrect.';
 
-  // 2. Check the recovery phrase (For simplicity, we will use the word "warrior" for now)
-  // In a real app, this would be a question saved during registration.
-  if (recoveryPhrase.toLowerCase() !== 'warrior') {
-    throw new HttpError(401, 'Incorrect recovery phrase.');
+  // 2. Check the phrase this user chose when they registered.
+  //    A dummy hash is computed for unknown names so the timing does not give them away.
+  if (!user) { await hashPhrase(recoveryPhrase, NO_SALT); throw new HttpError(401, BAD); }
+  if (!user.recovery) {
+    throw new HttpError(403, 'This account has no recovery phrase yet. Please contact an Exam Warriors admin.');
   }
+  const given = Buffer.from(await hashPhrase(recoveryPhrase, user.recovery.salt), 'hex');
+  const saved = Buffer.from(user.recovery.hash, 'hex');
+  if (given.length !== saved.length || !crypto.timingSafeEqual(given, saved)) throw new HttpError(401, BAD);
 
   // 3. Hash the new password and save it
   user.password = crypto.createHash('sha256').update(newPassword).digest('hex');
   await store.put('users', user);
 
-  send(res, 200, { message: 'Password reset successfully! You can now log in.' });
+  send(res, 200, { message: 'Password reset successfully! You can now log in.', username: user.username });
 });
 
   /* ----- dispatcher ----- */
