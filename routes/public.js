@@ -1,0 +1,259 @@
+'use strict';
+/* Routes for students and visitors. */
+const crypto = require('crypto');
+const H = require('../lib/helpers');
+const D = require('../lib/domain');
+
+const { HttpError } = H;
+
+module.exports = function registerPublic({ route, store, send, userOf, fileTypes }) {
+  const publicUser = (u) => ({ id: u.id, username: u.username, createdAt: u.createdAt || null });
+
+  async function startSession(req, res, user, extra) {
+    return Object.assign({ 'Set-Cookie': H.makeCookie(req, 'ew_user', 'user', user.id, user.sv || 0, H.USER_SESSION_DAYS * 86400) }, extra || {});
+  }
+
+  // A guest who logs in or registers keeps the scores they earned on this device.
+  async function claimGuest(deviceId, user) {
+    if (!H.okDevice(deviceId) || deviceId === user.id) return;
+    const g = await store.get('scores', deviceId);
+    if (!g) return;
+    const rec = (await store.get('scores', user.id)) || { id: user.id, nick: '', best: {} };
+    rec.best = rec.best || {};
+    Object.keys(g.best || {}).forEach((id) => {
+      if (!rec.best[id] || g.best[id].correct > rec.best[id].correct) rec.best[id] = g.best[id];
+    });
+    rec.history = D.historyOf(rec).concat(D.historyOf(g)).sort((a, b) => a.at - b.at).slice(-D.HISTORY_LIMIT);
+    rec.updatedAt = Math.max(rec.updatedAt || 0, g.updatedAt || 0);
+    await store.put('scores', rec);
+    await store.del('scores', deviceId);
+  }
+
+  const findByName = async (name) => {
+    const users = await store.list('users');
+    return users.find((u) => u.username.toLowerCase() === name.toLowerCase()) || null;
+  };
+
+  /* ---------- everything the site needs to draw itself ---------- */
+  route('GET', '/api/state', {}, async (req, res, ctx) => {
+    const [materials, quizzes, scores, events, users, notice, config] = await Promise.all([
+      store.list('materials'), store.list('quizzes'), store.list('scores'), store.list('events'),
+      store.list('users'), store.get('settings', 'notice'), D.loadConfig(store),
+    ]);
+    const user = await userOf(req);
+    const dev = String(ctx.query.get('device') || '');
+    const meId = user ? user.id : (H.okDevice(dev) ? dev : '');
+
+    const quizIds = new Set(quizzes.map((q) => q.id));
+    const usersById = new Map(users.map((u) => [u.id, u]));
+    const board = D.buildBoard(usersById, scores, quizIds);
+
+    let me = null;
+    const rec = meId ? scores.find((s) => s.id === meId) : null;
+    if (rec) {
+      const { points, done } = D.pointsFor(rec, quizIds);
+      const idx = board.findIndex((b) => b.id === meId);
+      me = { points, done, best: rec.best || {}, nick: rec.nick || '', position: idx >= 0 ? idx + 1 : null, rank: D.rankInfo(points) };
+    }
+
+    const visibleMaterials = materials.filter((m) => !m.hidden);
+    const visibleQuizzes = quizzes.filter((q) => !q.hidden);
+    send(res, 200, {
+      config,
+      notice: notice && notice.text ? { text: notice.text, level: notice.level || 'info' } : null,
+      materials: visibleMaterials
+        .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
+        .map((m) => ({ id: m.id, title: m.title, course: m.course, kind: m.kind, note: m.note || '', link: m.link || '', fileId: m.fileId || '', fileName: m.fileName || '', pinned: !!m.pinned, addedAt: m.addedAt })),
+      quizzes: visibleQuizzes.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)),
+      events: events.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 200),
+      board: config.leaderboardEnabled
+        ? board.slice(0, 100).map((b, i) => ({ rank: i + 1, name: b.name, points: b.points, done: b.done, isUser: b.isUser, me: b.id === meId }))
+        : [],
+      stats: { materials: visibleMaterials.length, quizzes: visibleQuizzes.length, students: users.filter((u) => !u.disabled).length },
+      user: user ? publicUser(user) : null,
+      me,
+    });
+  });
+
+  route('GET', '/files/:id', {}, async (req, res, ctx) => {
+    const id = ctx.params[0];
+    const mats = await store.list('materials');
+    const m = mats.find((x) => x.fileId === id);
+    if (!m || (m.hidden && !H.isAdmin(req))) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
+    const buf = await store.getFile(id);
+    if (!buf) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
+    const meta = fileTypes[m.fileType] || { inline: false };
+    const name = (m.fileName || 'file').replace(/[^\w.\- ]+/g, '_');
+    send(res, 200, buf, {
+      'Content-Type': m.fileType || 'application/octet-stream',
+      'Content-Disposition': (meta.inline ? 'inline' : 'attachment') + "; filename*=UTF-8''" + encodeURIComponent(name),
+      'Content-Security-Policy': 'sandbox',
+      'Cache-Control': 'public, max-age=3600',
+    });
+  });
+
+  /* ---------- accounts ---------- */
+  route('POST', '/api/register', { limit: ['register', 30, 60 * 60 * 1000] }, async (req, res, ctx) => {
+    const config = await D.loadConfig(store);
+    if (!config.registrationOpen) throw new HttpError(403, 'Registration is closed right now. Please check back later.');
+    const b = ctx.body;
+    const username = H.str(b.username, 60).trim().replace(/\s+/g, ' ');
+    const password = H.str(b.password, 100);
+    const phrase = H.normPhrase(H.str(b.recoveryPhrase, 100));
+    if (!username || !password) throw new HttpError(400, 'Username and password required.');
+    if (!H.USERNAME_RE.test(username)) throw new HttpError(400, 'Username must be 3 to 24 characters: letters, numbers, spaces, dots, dashes or underscores.');
+    if (password.length < 6) throw new HttpError(400, 'Password must be at least 6 characters.');
+    if (phrase.length < 4 || phrase.length > 60) throw new HttpError(400, 'Recovery phrase must be 4 to 60 characters.');
+    if (await findByName(username)) throw new HttpError(400, 'Username already taken.');
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const user = {
+      id: H.newId(), username, sv: 0,
+      password: await H.hashPassword(password),
+      recovery: { salt, hash: await H.hashPhrase(phrase, salt) },
+      createdAt: Date.now(), lastLoginAt: Date.now(),
+    };
+    await store.put('users', user);
+    await claimGuest(b.deviceId, user);
+    send(res, 200, { message: 'Welcome to the team! Your account is ready.', user: publicUser(user) }, await startSession(req, res, user));
+  });
+
+  route('POST', '/api/login', { limit: ['userlogin', 60, 15 * 60 * 1000] }, async (req, res, ctx) => {
+    const b = ctx.body;
+    const username = H.str(b.username, 60).trim();
+    const password = H.str(b.password, 100);
+    if (!username || !password) throw new HttpError(400, 'Username and password required.');
+    const user = await findByName(username);
+    const check = user ? await H.checkPassword(user.password, password) : { ok: false };
+    if (!user || !check.ok) throw new HttpError(401, 'Invalid username or password.');
+    if (user.disabled) throw new HttpError(403, 'This account has been disabled. Please contact an Exam Warriors admin.');
+    if (check.legacy) user.password = await H.hashPassword(password); // upgrade an older password hash
+    user.lastLoginAt = Date.now();
+    await store.put('users', user);
+    await claimGuest(b.deviceId, user);
+    send(res, 200, { message: 'Welcome back, ' + user.username + '!', user: publicUser(user) }, await startSession(req, res, user));
+  });
+
+  route('POST', '/api/logout', {}, async (req, res) => {
+    send(res, 200, { ok: true }, { 'Set-Cookie': H.clearCookie('ew_user') });
+  });
+
+  route('GET', '/api/me', {}, async (req, res) => {
+    const user = await userOf(req);
+    send(res, 200, { user: user ? publicUser(user) : null });
+  });
+
+  route('POST', '/api/user/reset-password', { limit: ['reset', 10, 15 * 60 * 1000] }, async (req, res, ctx) => {
+    const b = ctx.body;
+    const username = H.str(b.username, 60).trim();
+    const phrase = H.str(b.recoveryPhrase, 100);
+    const newPassword = H.str(b.newPassword, 100);
+    if (!username || !phrase || !newPassword) throw new HttpError(400, 'Please fill in all fields.');
+    if (newPassword.length < 6) throw new HttpError(400, 'New password must be at least 6 characters.');
+    const BAD = 'Username or recovery phrase is incorrect.';
+    const user = await findByName(username);
+    if (!user) { await H.hashPhrase(phrase, H.NO_SALT); throw new HttpError(401, BAD); }
+    if (!user.recovery) throw new HttpError(403, 'This account has no recovery phrase yet. Please contact an Exam Warriors admin.');
+    const given = Buffer.from(await H.hashPhrase(phrase, user.recovery.salt), 'hex');
+    const saved = Buffer.from(user.recovery.hash, 'hex');
+    if (given.length !== saved.length || !crypto.timingSafeEqual(given, saved)) throw new HttpError(401, BAD);
+    user.password = await H.hashPassword(newPassword);
+    user.sv = (user.sv || 0) + 1; // signs the account out everywhere else
+    await store.put('users', user);
+    send(res, 200, { message: 'Password reset successfully! You can now log in.', username: user.username });
+  });
+
+  route('POST', '/api/user/update', { limit: ['update', 20, 15 * 60 * 1000] }, async (req, res, ctx) => {
+    const user = await userOf(req);
+    if (!user) throw new HttpError(401, 'Please log in first.');
+    const b = ctx.body;
+    const current = H.str(b.currentPassword, 100);
+    if (!current) throw new HttpError(400, 'Enter your current password to make changes.');
+    if (!(await H.checkPassword(user.password, current)).ok) throw new HttpError(401, 'Your current password is not correct.');
+
+    const changes = [];
+    const newUsername = H.str(b.newUsername, 60).trim().replace(/\s+/g, ' ');
+    if (newUsername && newUsername !== user.username) {
+      if (!H.USERNAME_RE.test(newUsername)) throw new HttpError(400, 'Username must be 3 to 24 characters: letters, numbers, spaces, dots, dashes or underscores.');
+      const other = await findByName(newUsername);
+      if (other && other.id !== user.id) throw new HttpError(400, 'That username is already taken.');
+      user.username = newUsername; changes.push('username');
+    }
+    const newPassword = H.str(b.newPassword, 100);
+    let reissue = false;
+    if (newPassword) {
+      if (newPassword.length < 6) throw new HttpError(400, 'New password must be at least 6 characters.');
+      user.password = await H.hashPassword(newPassword);
+      user.sv = (user.sv || 0) + 1; reissue = true; changes.push('password');
+    }
+    const phrase = H.normPhrase(H.str(b.newRecoveryPhrase, 100));
+    if (phrase) {
+      if (phrase.length < 4 || phrase.length > 60) throw new HttpError(400, 'Recovery phrase must be 4 to 60 characters.');
+      const salt = crypto.randomBytes(16).toString('hex');
+      user.recovery = { salt, hash: await H.hashPhrase(phrase, salt) }; changes.push('recovery phrase');
+    }
+    if (!changes.length) throw new HttpError(400, 'There is nothing to change yet.');
+    await store.put('users', user);
+    send(res, 200, { message: 'Saved: ' + changes.join(', ') + '.', user: publicUser(user) }, reissue ? await startSession(req, res, user) : {});
+  });
+
+  /* ---------- profile ---------- */
+  route('GET', '/api/profile', {}, async (req, res) => {
+    const user = await userOf(req);
+    if (!user) throw new HttpError(401, 'Please log in first.');
+    const [quizzes, scores, users, config] = await Promise.all([store.list('quizzes'), store.list('scores'), store.list('users'), D.loadConfig(store)]);
+    const board = D.buildBoard(new Map(users.map((u) => [u.id, u])), scores, new Set(quizzes.map((q) => q.id)));
+    const rec = scores.find((s) => s.id === user.id) || null;
+    send(res, 200, D.buildProfile({ user, rec, quizzes, config, board, now: Date.now() }));
+  });
+
+  /* ---------- quiz results ---------- */
+  route('POST', '/api/scores', { limit: ['scores', 150, 10 * 60 * 1000] }, async (req, res, ctx) => {
+    const { deviceId, quizId, answers } = ctx.body;
+    const user = await userOf(req);
+    const config = await D.loadConfig(store);
+    let id;
+    if (user) id = user.id;
+    else {
+      if (config.requireLogin) throw new HttpError(401, 'Please log in to take quizzes.');
+      if (!H.okDevice(deviceId)) throw new HttpError(400, 'Invalid request.');
+      id = deviceId;
+    }
+    if (typeof quizId !== 'string') throw new HttpError(400, 'Invalid request.');
+    const quiz = await store.get('quizzes', quizId);
+    if (!quiz || quiz.hidden) throw new HttpError(404, 'That quiz is no longer available.');
+    if (!Array.isArray(answers) || answers.length !== quiz.questions.length) throw new HttpError(400, 'Answers do not match the quiz.');
+
+    let correct = 0;
+    quiz.questions.forEach((q, i) => { if (answers[i] === q.a) correct++; });
+    const total = quiz.questions.length;
+    const rec = (await store.get('scores', id)) || { id, nick: '', best: {} };
+    const quizzes = await store.list('quizzes');
+    const snap = (r) => D.buildProfile({ user: { id }, rec: r, quizzes, config: { courses: [] }, board: [], now: Date.now() });
+    const before = user ? snap(JSON.parse(JSON.stringify(rec))) : null;
+
+    const prev = rec.best[quizId];
+    const improved = !prev || correct > prev.correct;
+    if (improved) rec.best[quizId] = { correct, total };
+    rec.history = D.historyOf(rec).concat([{ q: quizId, c: correct, t: total, at: Date.now() }]).slice(-D.HISTORY_LIMIT);
+    rec.updatedAt = Date.now();
+    await store.put('scores', rec);
+
+    const after = snap(rec);
+    const earned = user
+      ? after.badges.filter((b) => b.earned && !before.badges.find((x) => x.id === b.id).earned).map((b) => b.name)
+      : [];
+    send(res, 200, { correct, total, improved, points: after.points, rank: after.rank.title, newBadges: earned });
+  });
+
+  // Guests (only possible when the admin turns off "login required") choose a leaderboard name.
+  route('POST', '/api/nick', { limit: ['nick', 20, 10 * 60 * 1000] }, async (req, res, ctx) => {
+    if (await userOf(req)) throw new HttpError(400, 'Your leaderboard name is your username.');
+    const nick = H.clean(ctx.body.nick, 24);
+    if (!H.okDevice(ctx.body.deviceId) || !nick) throw new HttpError(400, 'A name is required.');
+    const rec = (await store.get('scores', ctx.body.deviceId)) || { id: ctx.body.deviceId, nick: '', best: {} };
+    rec.nick = nick; rec.updatedAt = Date.now();
+    await store.put('scores', rec);
+    send(res, 200, { ok: true, nick });
+  });
+};
