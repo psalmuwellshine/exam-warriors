@@ -91,7 +91,7 @@ const views = {
     const list = await api('GET', '/api/admin/materials'); A.cache.materials = list;
     return html`${head('Materials', plural(list.length, 'resource') + '. Notes, past questions, slides, videos and links.', html`<button class="btn primary" data-action="mat-new" type="button">${icon('plus', 18)} Add material</button>`)}
       ${list.length ? html`<div class="tbl-wrap"><table><thead><tr><th>Title</th><th>Course</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>${list.map((m) => html`<tr><td><b>${m.title}</b><br><span class="tiny muted">${m.fileName || m.link || 'Notes only'}</span></td><td><span class="chip">${m.course}</span></td><td>${kindLabel[m.kind] || m.kind}</td>
-        <td>${m.pinned ? html`<span class="chip brand">Pinned</span> ` : ''}${m.hidden ? html`<span class="chip grey">Hidden</span>` : html`<span class="chip good">Live</span>`}</td>
+        <td>${m.paid ? html`<span class="chip brand">${naira(m.price)}</span> ` : ''}${m.pinned ? html`<span class="chip brand">Pinned</span> ` : ''}${m.hidden ? html`<span class="chip grey">Hidden</span>` : html`<span class="chip good">Live</span>`}</td>
         <td><div class="actions"><button class="btn ghost small icon" data-action="mat-pin" data-id="${m.id}" type="button" title="${m.pinned ? 'Unpin' : 'Pin to top'}" aria-label="${m.pinned ? 'Unpin' : 'Pin'}">${icon('pin', 17)}</button>
         <button class="btn ghost small icon" data-action="mat-hide" data-id="${m.id}" type="button" title="${m.hidden ? 'Show' : 'Hide'}" aria-label="${m.hidden ? 'Show' : 'Hide'}">${icon(m.hidden ? 'eye' : 'eyeoff', 17)}</button>
         <button class="btn ghost small icon" data-action="mat-edit" data-id="${m.id}" type="button" title="Edit" aria-label="Edit ${m.title}">${icon('edit', 17)}</button>
@@ -102,7 +102,7 @@ const views = {
     const list = await api('GET', '/api/admin/quizzes'); A.cache.quizzes = list;
     return html`${head('Quizzes', plural(list.length, 'quiz', 'quizzes') + '.', html`<button class="btn primary" data-action="qz-new" type="button">${icon('plus', 18)} New quiz</button>`)}
       ${list.length ? html`<div class="tbl-wrap"><table><thead><tr><th>Quiz</th><th>Course</th><th class="num">Questions</th><th class="num">Attempts</th><th class="num">Avg</th><th>Status</th><th></th></tr></thead><tbody>${list.map((q) => html`<tr><td><b>${q.title}</b></td><td><span class="chip">${q.course}</span></td><td class="num">${q.questions.length}</td><td class="num">${q.stats.attempts}</td><td class="num">${q.stats.avgPct === null ? '—' : q.stats.avgPct + '%'}</td>
-        <td>${q.hidden ? html`<span class="chip grey">Hidden</span>` : html`<span class="chip good">Live</span>`}</td>
+        <td>${q.paid ? html`<span class="chip brand">${naira(q.price)}</span> ` : ''}${q.hidden ? html`<span class="chip grey">Hidden</span>` : html`<span class="chip good">Live</span>`}</td>
         <td><div class="actions"><button class="btn ghost small icon" data-action="qz-hide" data-id="${q.id}" type="button" title="${q.hidden ? 'Show' : 'Hide'}" aria-label="${q.hidden ? 'Show' : 'Hide'} ${q.title}">${icon(q.hidden ? 'eye' : 'eyeoff', 17)}</button>
         <button class="btn ghost small icon" data-action="qz-edit" data-id="${q.id}" type="button" title="Edit" aria-label="Edit ${q.title}">${icon('edit', 17)}</button>
         <button class="btn ghost small icon" data-action="qz-del" data-id="${q.id}" type="button" title="Delete" aria-label="Delete ${q.title}">${icon('trash', 17)}</button></div></td></tr>`)}</tbody></table></div>` : empty('quiz', 'No quizzes yet', 'Create a quiz or paste many questions at once.')}`;
@@ -146,6 +146,9 @@ const views = {
           ${tg('registrationOpen', c.registrationOpen, 'Allow new registrations', 'Turn off to stop new accounts being created.')}
           ${tg('requireLogin', c.requireLogin, 'Require login for quizzes', 'When off, guests can take quizzes, but scores are stored per device.')}
           ${tg('leaderboardEnabled', c.leaderboardEnabled, 'Show the leaderboard', 'Hides rankings everywhere on the site.')}</div>
+        <div class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">Semester pass</h3><p class="muted small" style="margin-bottom:12px">One payment that unlocks every paid note and quiz until the last day below. Mark items as paid, with their own prices, under Materials and Quizzes.</p>
+          <div class="grid2"><label class="field"><span>Pass price (naira)</span><input name="passPrice" type="number" inputmode="numeric" min="0" step="1" placeholder="e.g. 2000" value="${c.passPrice || ''}"></label>
+          <label class="field"><span>Pass lasts until</span><input name="passEnds" type="date" value="${c.passEnds || ''}"></label></div></div>
         <div class="card" style="margin-top:16px"><h3 style="margin-bottom:12px">Contact links</h3><p class="muted small" style="margin-bottom:12px">Shown in the site footer. Leave blank to hide.</p>
           <div class="grid2"><label class="field"><span>WhatsApp link</span><input name="whatsapp" inputmode="url" placeholder="https://" value="${L.whatsapp}"></label><label class="field"><span>Telegram link</span><input name="telegram" inputmode="url" placeholder="https://" value="${L.telegram}"></label>
           <label class="field"><span>Instagram link</span><input name="instagram" inputmode="url" placeholder="https://" value="${L.instagram}"></label><label class="field"><span>Website</span><input name="website" inputmode="url" placeholder="https://" value="${L.website}"></label></div>
@@ -165,10 +168,12 @@ function studentTable(list) {
   const q = A.search.trim().toLowerCase();
   const rows = list.filter((u) => (!q || u.username.toLowerCase().includes(q) || (u.matric || '').toLowerCase().includes(q)) && (!A.dept || u.departmentId === A.dept) && (!A.level || String(u.level) === String(A.level)));
   if (!rows.length) return empty('users', q ? 'No match' : 'No students yet', q ? 'Try another name.' : 'Students show up here after they register.');
-  return html`<div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Department</th><th>Rank</th><th class="num">Points</th><th class="num">Quizzes</th><th>Last login</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((u) => html`<tr>
+  return html`<div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Department</th><th>Rank</th><th class="num">Points</th><th class="num">Quizzes</th><th>Last login</th><th>Access</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((u) => html`<tr>
     <td><div class="row gap-s">${avatar(u.username, u.avatarId, 'sm')}<span><b>${u.username}</b><br><span class="tiny muted mono">${u.matric || 'no matric number'}</span></span></div></td><td>${u.departmentId ? dName(u.departmentId) : html`<span class="muted">Not set</span>`}${u.level ? html`<br><span class="tiny muted">${u.level} level</span>` : ''}</td><td>${u.rank}</td><td class="num">${u.points}</td><td class="num">${u.done}</td><td>${ago(u.lastLoginAt)}</td>
+    <td>${u.paidUntil ? html`<span class="chip good">Pass to ${u.paidUntil}</span>` : html`<span class="chip grey">No pass</span>`}${u.unlockedCount ? html`<br><span class="tiny muted">+ ${u.unlockedCount} item${u.unlockedCount === 1 ? '' : 's'}</span>` : ''}</td>
     <td>${u.disabled ? html`<span class="chip bad">Disabled</span>` : html`<span class="chip good">Active</span>`}</td>
     <td><div class="actions"><button class="btn ghost small" data-action="stu-view" data-id="${u.id}" type="button">View</button>
+    <button class="btn ghost small" data-action="stu-access" data-id="${u.id}" type="button">Access</button>
     <button class="btn ghost small icon" data-action="stu-edit" data-id="${u.id}" type="button" aria-label="Edit ${u.username}">${icon('edit', 16)}</button>
     <button class="btn ghost small" data-action="stu-pw" data-id="${u.id}" data-name="${u.username}" type="button">${icon('lock', 15)} Password</button>
     <button class="btn ghost small" data-action="stu-disable" data-id="${u.id}" data-name="${u.username}" data-state="${u.disabled ? 1 : 0}" type="button">${u.disabled ? 'Enable' : 'Disable'}</button>
@@ -208,6 +213,8 @@ function materialDialog(m) {
       <label class="field"><span>Link (optional)</span><input name="link" inputmode="url" placeholder="https://… YouTube, Drive, etc." value="${edit ? m.link || '' : ''}"></label>
       <label class="field"><span>File (optional, up to 12 MB)</span><input type="file" name="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.csv,.txt"><small>${edit && m.fileName ? 'Current file: ' + m.fileName + '. Choose a new one to replace it.' : 'PDF, Word, PowerPoint, Excel, image, CSV or text.'}</small></label>
       ${edit && m.fileId ? html`<label class="check small" style="margin-bottom:14px"><input type="checkbox" name="removeFile"> Remove the current file</label>` : ''}
+      <div class="paid-box" style="margin-bottom:16px"><label class="check"><input type="checkbox" name="paid" ${edit && m.paid ? raw('checked') : ''}> Paid (students must pay to open this)</label>
+        <label class="field" style="margin-top:8px"><span>Price in naira</span><input name="price" type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 500" value="${edit && m.paid ? m.price : ''}"></label></div>
       <div class="row gap wrap-r" style="margin-bottom:16px"><label class="check"><input type="checkbox" name="pinned" ${edit && m.pinned ? raw('checked') : ''}> Pin to top</label><label class="check"><input type="checkbox" name="hidden" ${edit && m.hidden ? raw('checked') : ''}> Hidden from students</label></div>
       <div class="row end gap"><button class="btn ghost" data-close type="button">Cancel</button><button class="btn primary" type="submit">${edit ? 'Save changes' : 'Add material'}</button></div></form>`, { wide: true });
   box.querySelector('form').dataset.id = edit ? m.id : '';
@@ -237,6 +244,8 @@ function quizDialog(qz) {
     <form data-submit="qz-save" novalidate>
       <div class="grid2"><label class="field"><span>Quiz title</span><input name="title" maxlength="120" required value="${Q.title}" autofocus></label>
       <label class="field"><span>Course</span><select name="course" required>${courseSelect(Q.course)}</select></label></div>
+      <div class="paid-box" style="margin-bottom:16px"><label class="check"><input type="checkbox" name="paid" ${Q.paid ? raw('checked') : ''}> Paid (students must pay to open this)</label>
+        <label class="field" style="margin-top:8px"><span>Price in naira</span><input name="price" type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 500" value="${Q.paid ? Q.price : ''}"></label></div>
       <label class="check" style="margin-bottom:16px"><input type="checkbox" name="hidden" ${Q.hidden ? raw('checked') : ''}> Hidden from students (draft)</label>
       <div id="q-list">${qEditor()}</div>
       <div class="row gap-s wrap-r" style="margin-bottom:18px"><button class="btn ghost small" data-action="qz-addq" type="button">${icon('plus', 15)} Add question</button><button class="btn ghost small" data-action="qz-bulk" type="button">${icon('upload', 15)} Paste many questions</button></div>
@@ -277,6 +286,7 @@ async function busy(form, work) {
   try { await work(); } catch (e) { warn(form.closest('.modal') || form.parentElement, e.message); }
   finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
 }
+const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 const val = (f, n) => String(new FormData(f).get(n) || '').trim();
 const chk = (f, n) => !!f.querySelector(`[name=${n}]`)?.checked;
 const byId = (list, id) => (A.cache[list] || []).find((x) => x.id === id);
@@ -380,7 +390,7 @@ const submits = {
   },
   async 'mat-save'(form) {
     await busy(form, async () => {
-      const body = { title: val(form, 'title'), course: val(form, 'course').toUpperCase(), kind: val(form, 'kind'), note: val(form, 'note'), link: val(form, 'link'), pinned: chk(form, 'pinned'), hidden: chk(form, 'hidden'), removeFile: chk(form, 'removeFile') };
+      const body = { title: val(form, 'title'), course: val(form, 'course').toUpperCase(), kind: val(form, 'kind'), note: val(form, 'note'), link: val(form, 'link'), paid: chk(form, 'paid'), price: val(form, 'price'), pinned: chk(form, 'pinned'), hidden: chk(form, 'hidden'), removeFile: chk(form, 'removeFile') };
       const file = form.querySelector('[name=file]').files[0];
       if (file) { if (file.size > 12 * 1024 * 1024) throw new Error('That file is over 12 MB.'); body.file = await readFile(file); }
       const id = form.dataset.id;
@@ -391,7 +401,7 @@ const submits = {
   async 'qz-save'(form) {
     syncQ(form);
     await busy(form, async () => {
-      const body = { title: val(form, 'title'), course: val(form, 'course').toUpperCase(), hidden: chk(form, 'hidden'), questions: Q.questions };
+      const body = { title: val(form, 'title'), course: val(form, 'course').toUpperCase(), paid: chk(form, 'paid'), price: val(form, 'price'), hidden: chk(form, 'hidden'), questions: Q.questions };
       const id = form.dataset.id;
       await api(id ? 'PUT' : 'POST', '/api/admin/quizzes' + (id ? '/' + id : ''), body);
       form.closeFn(); toast(id ? 'Quiz saved.' : 'Quiz created.'); reload();
@@ -411,7 +421,7 @@ const submits = {
   async 'settings-save'(form) {
     await busy(form, async () => {
       const body = { siteName: val(form, 'siteName'), tagline: val(form, 'tagline'), motto: val(form, 'motto'), heroTitle: val(form, 'heroTitle'), heroText: val(form, 'heroText'), footerText: val(form, 'footerText'),
-        registrationOpen: chk(form, 'registrationOpen'), requireLogin: chk(form, 'requireLogin'), leaderboardEnabled: chk(form, 'leaderboardEnabled'),
+        registrationOpen: chk(form, 'registrationOpen'), requireLogin: chk(form, 'requireLogin'), leaderboardEnabled: chk(form, 'leaderboardEnabled'), passPrice: val(form, 'passPrice'), passEnds: val(form, 'passEnds'),
         links: { whatsapp: val(form, 'whatsapp'), telegram: val(form, 'telegram'), instagram: val(form, 'instagram'), website: val(form, 'website'), email: val(form, 'email') } };
       A.config = await api('PUT', '/api/admin/config', body); toast('Settings saved. The site is updated.');
     });
@@ -454,6 +464,19 @@ Object.assign(actions, {
     simpleDialog('Edit ' + u.username, html`<label class="field"><span>Matric / registration number</span><input name="matric" maxlength="25" required value="${u.matric}" style="text-transform:uppercase" autofocus></label>${placeFields(fakeS(), u)}
       ${u.avatarId ? html`<p class="small"><button class="btn ghost small" data-action="stu-avatar-del" data-id="${u.id}" type="button">${icon('trash', 15)} Remove profile picture</button></p>` : ''}`, 'stu-edit-save', u.id);
   },
+  async 'stu-access'(el) {
+    const u = (A.cache.students || []).find((x) => x.id === el.dataset.id); if (!u) return;
+    const [mats, qzs] = await Promise.all([api('GET', '/api/admin/materials'), api('GET', '/api/admin/quizzes')]);
+    const paid = mats.map((m) => ({ id: m.id, title: m.title, course: m.course, price: m.price, paid: m.paid, kind: 'Note' })).concat(qzs.map((q) => ({ id: q.id, title: q.title, course: q.course, price: q.price, paid: q.paid, kind: 'Quiz' }))).filter((x) => x.paid);
+    const have = new Set(u.unlocked || []);
+    const end = (A.config && A.config.passEnds) || '';
+    simpleDialog('Access for ' + u.username, html`<label class="field"><span>Semester pass valid until</span><input name="paidUntil" type="date" value="${u.paidUntil || ''}"><small>Leave empty for no pass. ${end ? 'This semester ends ' + end + '.' : 'Set the semester end date under Site settings.'}</small></label>
+      ${end ? html`<p class="small"><button class="btn ghost small" data-action="stu-pass-fill" data-end="${end}" type="button">Give pass until ${end}</button> <button class="btn ghost small" data-action="stu-pass-clear" type="button">Remove pass</button></p>` : ''}
+      <p class="small" style="margin:14px 0 6px"><b>Single items this student has paid for</b></p>
+      ${paid.length ? html`<div style="max-height:220px;overflow:auto">${paid.map((x) => html`<label class="check small" style="display:flex;margin-bottom:6px"><input type="checkbox" name="unlocked" value="${x.id}" ${have.has(x.id) ? raw('checked') : ''}> <span>${x.title} <span class="tiny muted">${x.kind} · ${x.course} · ${naira(x.price)}</span></span></label>`)}</div>` : html`<p class="muted small">No paid items yet. Mark a note or quiz as paid first.</p>`}`, 'stu-access-save', u.id);
+  },
+  'stu-pass-fill'(el) { el.closest('form').querySelector('[name=paidUntil]').value = el.dataset.end; },
+  'stu-pass-clear'(el) { el.closest('form').querySelector('[name=paidUntil]').value = ''; },
   async 'stu-avatar-del'(el) { await api('DELETE', `/api/admin/users/${el.dataset.id}/avatar`); toast('Picture removed.'); el.remove(); reload(); },
 });
 function depDialog(d) {
@@ -480,6 +503,13 @@ Object.assign(submits, {
       const departmentIds = all ? [] : [...form.querySelectorAll('[name=departmentIds]:checked')].map((x) => x.value);
       await api(id ? 'PUT' : 'POST', '/api/admin/courses' + (id ? '/' + id : ''), { code: val(form, 'code').toUpperCase(), name: val(form, 'name'), level: Number(val(form, 'level')), departmentIds });
       form.closeFn(); toast('Saved.'); acadReload();
+    });
+  },
+  async 'stu-access-save'(form) {
+    await busy(form, async () => {
+      const unlocked = Array.from(form.querySelectorAll('[name=unlocked]:checked')).map((c) => c.value);
+      await api('POST', '/api/admin/users/' + form.dataset.id + '/access', { paidUntil: val(form, 'paidUntil'), unlocked });
+      form.closeFn(); toast('Access updated.'); reload();
     });
   },
   async 'stu-edit-save'(form) {
