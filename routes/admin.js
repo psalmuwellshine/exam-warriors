@@ -2,6 +2,7 @@
 /* Admin control panel API. Every route here needs the admin cookie. */
 const H = require('../lib/helpers');
 const D = require('../lib/domain');
+const Ac = require('../lib/academics');
 const { FILE_TYPES, MAX_FILE_BYTES, looksLike } = require('../lib/files');
 
 const { HttpError, clean, okCourse, isHttp, newId, isDate, isTime, bool } = H;
@@ -59,7 +60,7 @@ module.exports = function registerAdmin({ route, store, send }) {
   const userRow = (u, rec, quizIds) => {
     const p = D.pointsFor(rec, quizIds);
     return {
-      id: u.id, username: u.username, createdAt: u.createdAt || null, lastLoginAt: u.lastLoginAt || null,
+      id: u.id, username: u.username, matric: u.matric || '', facultyId: u.facultyId || '', departmentId: u.departmentId || '', level: u.level || 0, avatarId: u.avatarId || '', createdAt: u.createdAt || null, lastLoginAt: u.lastLoginAt || null,
       disabled: !!u.disabled, hasRecovery: !!u.recovery, points: p.points, done: p.done, rank: D.rankInfo(p.points).title,
       attempts: D.historyOf(rec).length || p.done,
     };
@@ -73,9 +74,9 @@ module.exports = function registerAdmin({ route, store, send }) {
   route('GET', '/api/admin/users/:id', A, async (req, res, ctx) => {
     const user = await store.get('users', ctx.params[0]);
     if (!user) throw new HttpError(404, 'Student not found.');
-    const [quizzes, scores, users, config] = await Promise.all([store.list('quizzes'), store.list('scores'), store.list('users'), D.loadConfig(store)]);
+    const [quizzes, scores, users, courses] = await Promise.all([store.list('quizzes'), store.list('scores'), store.list('users'), store.list('courses')]);
     const board = D.buildBoard(new Map(users.map((u) => [u.id, u])), scores, new Set(quizzes.map((q) => q.id)));
-    const profile = D.buildProfile({ user, rec: scores.find((s) => s.id === user.id) || null, quizzes, config, board, now: Date.now() });
+    const profile = D.buildProfile({ user, rec: scores.find((s) => s.id === user.id) || null, quizzes, courses, board, now: Date.now() });
     profile.user.disabled = !!user.disabled;
     profile.user.hasRecovery = !!user.recovery;
     send(res, 200, profile);
@@ -103,10 +104,132 @@ module.exports = function registerAdmin({ route, store, send }) {
     send(res, 200, { ok: true });
   });
   route('DELETE', '/api/admin/users/:id', A, async (req, res, ctx) => {
+    const u = await store.get('users', ctx.params[0]);
+    if (u && u.avatarId) await store.delFile(u.avatarId);
     await store.del('users', ctx.params[0]);
     await store.del('scores', ctx.params[0]);
     send(res, 200, { ok: true });
   });
+
+  route('PUT', '/api/admin/users/:id', A, async (req, res, ctx) => {
+    const user = await store.get('users', ctx.params[0]);
+    if (!user) throw new HttpError(404, 'Student not found.');
+    const b = ctx.body;
+    const matric = Ac.cleanMatric(b.matric);
+    if ((await store.list('users')).some((u) => u.matric === matric && u.id !== user.id)) throw new HttpError(400, 'That matric number belongs to another student.');
+    const place = Ac.pickAcademic(b, await Ac.loadAcademics(store));
+    user.matric = matric; Object.assign(user, place);
+    await store.put('users', user);
+    send(res, 200, { ok: true });
+  });
+  route('DELETE', '/api/admin/users/:id/avatar', A, async (req, res, ctx) => {
+    const user = await store.get('users', ctx.params[0]);
+    if (!user) throw new HttpError(404, 'Student not found.');
+    if (user.avatarId) { await store.delFile(user.avatarId); user.avatarId = ''; user.avatarType = ''; await store.put('users', user); }
+    send(res, 200, { ok: true });
+  });
+
+  /* ---------- faculties, departments, courses ---------- */
+  route('GET', '/api/admin/academics', A, async (req, res) => {
+    const [acad, users] = await Promise.all([Ac.loadAcademics(store), store.list('users')]);
+    const count = (k, id) => users.filter((u) => u[k] === id).length;
+    send(res, 200, {
+      faculties: acad.faculties.map((f) => Object.assign({}, f, { students: count('facultyId', f.id), departments: acad.departments.filter((d) => d.facultyId === f.id).length })),
+      departments: acad.departments.map((d) => Object.assign({}, d, { students: count('departmentId', d.id), courses: acad.courses.filter((c) => (c.departmentIds || []).includes(d.id)).length })),
+      courses: acad.courses,
+    });
+  });
+  route('POST', '/api/admin/faculties', A, async (req, res, ctx) => {
+    const name = clean(ctx.body.name, 90);
+    if (!name) throw new HttpError(400, 'Add a faculty name.');
+    if ((await store.list('faculties')).some((f) => f.name.toLowerCase() === name.toLowerCase())) throw new HttpError(400, 'That faculty already exists.');
+    const doc = { id: newId(), name }; await store.put('faculties', doc);
+    send(res, 200, { ok: true, id: doc.id });
+  });
+  route('PUT', '/api/admin/faculties/:id', A, async (req, res, ctx) => {
+    const f = await store.get('faculties', ctx.params[0]);
+    if (!f) throw new HttpError(404, 'Faculty not found.');
+    const name = clean(ctx.body.name, 90);
+    if (!name) throw new HttpError(400, 'Add a faculty name.');
+    f.name = name; await store.put('faculties', f);
+    send(res, 200, { ok: true });
+  });
+  route('DELETE', '/api/admin/faculties/:id', A, async (req, res, ctx) => {
+    const id = ctx.params[0];
+    if ((await store.list('departments')).some((d) => d.facultyId === id)) throw new HttpError(400, 'Remove or move this faculty\'s departments first.');
+    if ((await store.list('users')).some((u) => u.facultyId === id)) throw new HttpError(400, 'Students are still registered under this faculty.');
+    await store.del('faculties', id);
+    send(res, 200, { ok: true });
+  });
+  async function readDept(b, existing) {
+    const name = clean(b.name, 90);
+    if (!name) throw new HttpError(400, 'Add a department or programme name.');
+    const facultyId = String(b.facultyId || '');
+    if (!(await store.get('faculties', facultyId))) throw new HttpError(400, 'Choose a faculty.');
+    const maxLevel = Number(b.maxLevel);
+    if (!Ac.LEVELS.includes(maxLevel)) throw new HttpError(400, 'Choose the highest level (100 to 600).');
+    const dup = (await store.list('departments')).some((d) => d.facultyId === facultyId && d.name.toLowerCase() === name.toLowerCase() && (!existing || d.id !== existing.id));
+    if (dup) throw new HttpError(400, 'That department already exists in this faculty.');
+    return { id: existing ? existing.id : newId(), name, facultyId, maxLevel };
+  }
+  route('POST', '/api/admin/departments', A, async (req, res, ctx) => {
+    const d = await readDept(ctx.body, null); await store.put('departments', d);
+    send(res, 200, { ok: true, id: d.id });
+  });
+  route('PUT', '/api/admin/departments/:id', A, async (req, res, ctx) => {
+    const cur = await store.get('departments', ctx.params[0]);
+    if (!cur) throw new HttpError(404, 'Department not found.');
+    const d = await readDept(ctx.body, cur);
+    if (d.facultyId !== cur.facultyId && (await store.list('users')).some((u) => u.departmentId === cur.id)) throw new HttpError(400, 'Students are registered here, so it cannot move to another faculty.');
+    await store.put('departments', d);
+    send(res, 200, { ok: true });
+  });
+  route('DELETE', '/api/admin/departments/:id', A, async (req, res, ctx) => {
+    const id = ctx.params[0];
+    if ((await store.list('users')).some((u) => u.departmentId === id)) throw new HttpError(400, 'Students are registered in this department.');
+    for (const c of await store.list('courses')) {
+      if ((c.departmentIds || []).includes(id)) { c.departmentIds = c.departmentIds.filter((x) => x !== id); await store.put('courses', c); }
+    }
+    await store.del('departments', id);
+    send(res, 200, { ok: true });
+  });
+  async function readCourse(b, existing) {
+    const code = clean(b.code, 10).toUpperCase();
+    if (!okCourse(code)) throw new HttpError(400, 'Course code must be 2 to 10 letters or digits, like MBH222.');
+    const level = Number(b.level);
+    if (!Ac.LEVELS.includes(level)) throw new HttpError(400, 'Choose a level from 100 to 600.');
+    if ((await store.list('courses')).some((c) => c.code === code && (!existing || c.id !== existing.id))) throw new HttpError(400, 'Course ' + code + ' already exists.');
+    const deps = await store.list('departments');
+    const ids = Array.isArray(b.departmentIds) ? [...new Set(b.departmentIds.map(String))] : [];
+    if (ids.some((id) => !deps.some((d) => d.id === id))) throw new HttpError(400, 'One of the departments is not valid.');
+    return { id: existing ? existing.id : newId(), code, name: clean(b.name, 90), level, departmentIds: ids };
+  }
+  route('POST', '/api/admin/courses', A, async (req, res, ctx) => {
+    const c = await readCourse(ctx.body, null); await store.put('courses', c);
+    send(res, 200, { ok: true, id: c.id });
+  });
+  route('PUT', '/api/admin/courses/:id', A, async (req, res, ctx) => {
+    const cur = await store.get('courses', ctx.params[0]);
+    if (!cur) throw new HttpError(404, 'Course not found.');
+    const c = await readCourse(ctx.body, cur);
+    if (c.code !== cur.code) { // keep materials and quizzes attached when the code changes
+      for (const m of await store.list('materials')) if (m.course === cur.code) { m.course = c.code; await store.put('materials', m); }
+      for (const q of await store.list('quizzes')) if (q.course === cur.code) { q.course = c.code; await store.put('quizzes', q); }
+    }
+    await store.put('courses', c);
+    send(res, 200, { ok: true });
+  });
+  route('DELETE', '/api/admin/courses/:id', A, async (req, res, ctx) => {
+    const c = await store.get('courses', ctx.params[0]);
+    if (!c) return send(res, 200, { ok: true });
+    const used = (await store.list('materials')).some((m) => m.course === c.code) || (await store.list('quizzes')).some((q) => q.course === c.code);
+    if (used) throw new HttpError(400, 'Materials or quizzes still use ' + c.code + '. Delete or move them first.');
+    await store.del('courses', c.id);
+    send(res, 200, { ok: true });
+  });
+  const requireCourse = async (code) => {
+    if (!(await store.list('courses')).some((c) => c.code === code)) throw new HttpError(400, 'Pick a course from the list. New courses are added under Academics.');
+  };
 
   /* ---------- materials ---------- */
   async function readMaterial(b, existing) {
@@ -149,6 +272,7 @@ module.exports = function registerAdmin({ route, store, send }) {
   });
   route('POST', '/api/admin/materials', A, async (req, res, ctx) => {
     const r = await readMaterial(ctx.body, null);
+    await requireCourse(r.doc.course);
     await saveMaterial(r);
     send(res, 200, { ok: true, id: r.doc.id });
   });
@@ -156,6 +280,7 @@ module.exports = function registerAdmin({ route, store, send }) {
     const m = await store.get('materials', ctx.params[0]);
     if (!m) throw new HttpError(404, 'Material not found.');
     const r = await readMaterial(ctx.body, m);
+    if (r.doc.course !== m.course) await requireCourse(r.doc.course);
     await saveMaterial(r);
     send(res, 200, { ok: true });
   });
@@ -192,6 +317,7 @@ module.exports = function registerAdmin({ route, store, send }) {
   });
   route('POST', '/api/admin/quizzes', A, async (req, res, ctx) => {
     const doc = readQuiz(ctx.body, null);
+    await requireCourse(doc.course);
     await store.put('quizzes', doc);
     send(res, 200, { ok: true, id: doc.id, count: doc.questions.length });
   });
@@ -199,6 +325,7 @@ module.exports = function registerAdmin({ route, store, send }) {
     const q = await store.get('quizzes', ctx.params[0]);
     if (!q) throw new HttpError(404, 'Quiz not found.');
     const doc = readQuiz(ctx.body, q);
+    if (doc.course !== q.course) await requireCourse(doc.course);
     await store.put('quizzes', doc);
     send(res, 200, { ok: true });
   });
@@ -266,26 +393,15 @@ module.exports = function registerAdmin({ route, store, send }) {
       id: 'config',
       siteName: clean(b.siteName, 60) || cur.siteName,
       tagline: clean(b.tagline, 120),
+      motto: clean(b.motto, 60),
       heroTitle: clean(b.heroTitle, 90) || cur.heroTitle,
       heroText: clean(b.heroText, 300),
       footerText: clean(b.footerText, 120),
       registrationOpen: bool(b.registrationOpen),
       requireLogin: bool(b.requireLogin),
       leaderboardEnabled: bool(b.leaderboardEnabled),
-      courses: cur.courses,
       links: {},
     };
-    if (b.courses !== undefined) {
-      if (!Array.isArray(b.courses) || b.courses.length > 60) throw new HttpError(400, 'Courses must be a list of up to 60.');
-      const seen = new Set();
-      next.courses = b.courses.map((c) => {
-        const code = clean(c && c.code, 10).toUpperCase();
-        if (!okCourse(code)) throw new HttpError(400, 'Course code "' + code + '" must be 2 to 10 letters or digits.');
-        if (seen.has(code)) throw new HttpError(400, 'Course ' + code + ' is listed twice.');
-        seen.add(code);
-        return { code, name: clean(c.name, 80) };
-      });
-    }
     const L = b.links || {};
     Object.keys(D.DEFAULT_CONFIG.links).forEach((k) => {
       const v = clean(L[k], 200);
@@ -324,24 +440,26 @@ module.exports = function registerAdmin({ route, store, send }) {
     const byId = new Map(scores.map((s) => [s.id, s]));
     let rows;
     if (what === 'students') {
-      rows = [['Username', 'Joined', 'Last login', 'Status', 'Points', 'Quizzes done', 'Rank']].concat(users.map((u) => {
+      const acad = await Ac.loadAcademics(store);
+      const fn = (id) => (acad.faculties.find((f) => f.id === id) || {}).name || ''; const dn = (id) => (acad.departments.find((d) => d.id === id) || {}).name || '';
+      rows = [['Username', 'Matric number', 'Faculty', 'Department', 'Level', 'Joined', 'Last login', 'Status', 'Points', 'Quizzes done', 'Rank']].concat(users.map((u) => {
         const r = userRow(u, byId.get(u.id), ids);
-        return [r.username, r.createdAt ? new Date(r.createdAt).toISOString() : '', r.lastLoginAt ? new Date(r.lastLoginAt).toISOString() : '', r.disabled ? 'disabled' : 'active', r.points, r.done, r.rank];
+        return [r.username, r.matric, fn(r.facultyId), dn(r.departmentId), r.level || '', r.createdAt ? new Date(r.createdAt).toISOString() : '', r.lastLoginAt ? new Date(r.lastLoginAt).toISOString() : '', r.disabled ? 'disabled' : 'active', r.points, r.done, r.rank];
       }));
     } else if (what === 'scores') {
-      const name = new Map(users.map((u) => [u.id, u.username]));
-      rows = [['Student', 'Quiz', 'Course', 'Best correct', 'Out of', 'Percent']];
+      const name = new Map(users.map((u) => [u.id, u.username])); const mat = new Map(users.map((u) => [u.id, u.matric || '']));
+      rows = [['Student', 'Matric number', 'Quiz', 'Course', 'Best correct', 'Out of', 'Percent']];
       scores.forEach((s) => {
         Object.keys(s.best || {}).forEach((qid) => {
           const q = quizzes.find((x) => x.id === qid); if (!q) return;
           const b = s.best[qid];
-          rows.push([name.get(s.id) || s.nick || 'Guest', q.title, q.course, b.correct, b.total, b.total ? Math.round((b.correct / b.total) * 100) : 0]);
+          rows.push([name.get(s.id) || s.nick || 'Guest', mat.get(s.id) || '', q.title, q.course, b.correct, b.total, b.total ? Math.round((b.correct / b.total) * 100) : 0]);
         });
       });
     } else throw new HttpError(404, 'Unknown export.');
     send(res, 200, '﻿' + csv(rows), {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="exam-warriors-${what}.csv"`,
+      'Content-Disposition': `attachment; filename="altidian-${what}.csv"`,
       'Cache-Control': 'no-store',
     });
   });

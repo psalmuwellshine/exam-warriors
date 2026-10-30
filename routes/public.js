@@ -3,11 +3,15 @@
 const crypto = require('crypto');
 const H = require('../lib/helpers');
 const D = require('../lib/domain');
+const Ac = require('../lib/academics');
+const { looksLike } = require('../lib/files');
 
 const { HttpError } = H;
 
 module.exports = function registerPublic({ route, store, send, userOf, fileTypes }) {
-  const publicUser = (u) => ({ id: u.id, username: u.username, createdAt: u.createdAt || null });
+  const publicUser = (u) => ({ id: u.id, username: u.username, createdAt: u.createdAt || null, matric: u.matric || '', facultyId: u.facultyId || '', departmentId: u.departmentId || '', level: u.level || 0, avatarId: u.avatarId || '' });
+  const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const MAX_AVATAR = 400 * 1024;
 
   async function startSession(req, res, user, extra) {
     return Object.assign({ 'Set-Cookie': H.makeCookie(req, 'ew_user', 'user', user.id, user.sv || 0, H.USER_SESSION_DAYS * 86400) }, extra || {});
@@ -40,6 +44,7 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
       store.list('materials'), store.list('quizzes'), store.list('scores'), store.list('events'),
       store.list('users'), store.get('settings', 'notice'), D.loadConfig(store),
     ]);
+    const academics = await Ac.loadAcademics(store);
     const user = await userOf(req);
     const dev = String(ctx.query.get('device') || '');
     const meId = user ? user.id : (H.okDevice(dev) ? dev : '');
@@ -59,7 +64,7 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
     const visibleMaterials = materials.filter((m) => !m.hidden);
     const visibleQuizzes = quizzes.filter((q) => !q.hidden);
     send(res, 200, {
-      config,
+      config, academics,
       notice: notice && notice.text ? { text: notice.text, level: notice.level || 'info' } : null,
       materials: visibleMaterials
         .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
@@ -67,7 +72,7 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
       quizzes: visibleQuizzes.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)),
       events: events.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 200),
       board: config.leaderboardEnabled
-        ? board.slice(0, 100).map((b, i) => ({ rank: i + 1, name: b.name, points: b.points, done: b.done, isUser: b.isUser, me: b.id === meId }))
+        ? board.slice(0, 200).map((b, i) => ({ rank: i + 1, name: b.name, points: b.points, done: b.done, isUser: b.isUser, me: b.id === meId, avatar: b.avatar, dept: b.dept, level: b.level }))
         : [],
       stats: { materials: visibleMaterials.length, quizzes: visibleQuizzes.length, students: users.filter((u) => !u.disabled).length },
       user: user ? publicUser(user) : null,
@@ -105,17 +110,21 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
     if (password.length < 6) throw new HttpError(400, 'Password must be at least 6 characters.');
     if (phrase.length < 4 || phrase.length > 60) throw new HttpError(400, 'Recovery phrase must be 4 to 60 characters.');
     if (await findByName(username)) throw new HttpError(400, 'Username already taken.');
+    const acad = await Ac.loadAcademics(store);
+    const matric = Ac.cleanMatric(b.matric);
+    if ((await store.list('users')).some((u) => u.matric === matric)) throw new HttpError(400, 'That matric number is already registered. If it is yours, log in or contact an admin.');
+    const place = Ac.pickAcademic(b, acad);
 
     const salt = crypto.randomBytes(16).toString('hex');
     const user = {
-      id: H.newId(), username, sv: 0,
+      id: H.newId(), username, sv: 0, matric, facultyId: place.facultyId, departmentId: place.departmentId, level: place.level,
       password: await H.hashPassword(password),
       recovery: { salt, hash: await H.hashPhrase(phrase, salt) },
       createdAt: Date.now(), lastLoginAt: Date.now(),
     };
     await store.put('users', user);
     await claimGuest(b.deviceId, user);
-    send(res, 200, { message: 'Welcome to the team! Your account is ready.', user: publicUser(user) }, await startSession(req, res, user));
+    send(res, 200, { message: 'Welcome aboard! Your account is ready.', user: publicUser(user) }, await startSession(req, res, user));
   });
 
   route('POST', '/api/login', { limit: ['userlogin', 60, 15 * 60 * 1000] }, async (req, res, ctx) => {
@@ -126,7 +135,7 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
     const user = await findByName(username);
     const check = user ? await H.checkPassword(user.password, password) : { ok: false };
     if (!user || !check.ok) throw new HttpError(401, 'Invalid username or password.');
-    if (user.disabled) throw new HttpError(403, 'This account has been disabled. Please contact an Exam Warriors admin.');
+    if (user.disabled) throw new HttpError(403, 'This account has been disabled. Please contact an Altidian admin.');
     if (check.legacy) user.password = await H.hashPassword(password); // upgrade an older password hash
     user.lastLoginAt = Date.now();
     await store.put('users', user);
@@ -153,7 +162,7 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
     const BAD = 'Username or recovery phrase is incorrect.';
     const user = await findByName(username);
     if (!user) { await H.hashPhrase(phrase, H.NO_SALT); throw new HttpError(401, BAD); }
-    if (!user.recovery) throw new HttpError(403, 'This account has no recovery phrase yet. Please contact an Exam Warriors admin.');
+    if (!user.recovery) throw new HttpError(403, 'This account has no recovery phrase yet. Please contact an Altidian admin.');
     const given = Buffer.from(await H.hashPhrase(phrase, user.recovery.salt), 'hex');
     const saved = Buffer.from(user.recovery.hash, 'hex');
     if (given.length !== saved.length || !crypto.timingSafeEqual(given, saved)) throw new HttpError(401, BAD);
@@ -192,6 +201,17 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
       const salt = crypto.randomBytes(16).toString('hex');
       user.recovery = { salt, hash: await H.hashPhrase(phrase, salt) }; changes.push('recovery phrase');
     }
+    const newMatric = H.str(b.newMatric, 40);
+    if (newMatric && Ac.normMatric(newMatric) !== user.matric) {
+      const m = Ac.cleanMatric(newMatric);
+      if ((await store.list('users')).some((u) => u.matric === m && u.id !== user.id)) throw new HttpError(400, 'That matric number is already registered.');
+      user.matric = m; changes.push('matric number');
+    }
+    if (b.departmentId || b.facultyId || b.level) {
+      const place = Ac.pickAcademic(b, await Ac.loadAcademics(store));
+      if (place.departmentId !== user.departmentId || place.level !== user.level) changes.push('department and level');
+      Object.assign(user, place);
+    }
     if (!changes.length) throw new HttpError(400, 'There is nothing to change yet.');
     await store.put('users', user);
     send(res, 200, { message: 'Saved: ' + changes.join(', ') + '.', user: publicUser(user) }, reissue ? await startSession(req, res, user) : {});
@@ -201,10 +221,42 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
   route('GET', '/api/profile', {}, async (req, res) => {
     const user = await userOf(req);
     if (!user) throw new HttpError(401, 'Please log in first.');
-    const [quizzes, scores, users, config] = await Promise.all([store.list('quizzes'), store.list('scores'), store.list('users'), D.loadConfig(store)]);
+    const [quizzes, scores, users, courses] = await Promise.all([store.list('quizzes'), store.list('scores'), store.list('users'), store.list('courses')]);
     const board = D.buildBoard(new Map(users.map((u) => [u.id, u])), scores, new Set(quizzes.map((q) => q.id)));
     const rec = scores.find((s) => s.id === user.id) || null;
-    send(res, 200, D.buildProfile({ user, rec, quizzes, config, board, now: Date.now() }));
+    send(res, 200, D.buildProfile({ user, rec, quizzes, courses, board, now: Date.now() }));
+  });
+
+  /* ---------- profile picture ---------- */
+  route('POST', '/api/user/avatar', { limit: ['avatar', 20, 60 * 60 * 1000] }, async (req, res, ctx) => {
+    const user = await userOf(req);
+    if (!user) throw new HttpError(401, 'Please log in first.');
+    const img = ctx.body.image || {};
+    const type = String(img.type || '');
+    if (!AVATAR_TYPES.includes(type)) throw new HttpError(400, 'Use a JPG, PNG or WebP picture.');
+    const buf = Buffer.from(String(img.data || ''), 'base64');
+    if (!buf.length) throw new HttpError(400, 'The picture is empty.');
+    if (buf.length > MAX_AVATAR) throw new HttpError(400, 'That picture is too big. Pick a smaller one.');
+    if (!looksLike(buf, type)) throw new HttpError(400, 'The picture could not be read.');
+    const old = user.avatarId;
+    user.avatarId = H.newId(); user.avatarType = type;
+    await store.putFile(user.avatarId, buf);
+    await store.put('users', user);
+    if (old) await store.delFile(old);
+    send(res, 200, { ok: true, user: publicUser(user) });
+  });
+  route('DELETE', '/api/user/avatar', {}, async (req, res) => {
+    const user = await userOf(req);
+    if (!user) throw new HttpError(401, 'Please log in first.');
+    if (user.avatarId) { await store.delFile(user.avatarId); user.avatarId = ''; user.avatarType = ''; await store.put('users', user); }
+    send(res, 200, { ok: true, user: publicUser(user) });
+  });
+  // Pictures are shown on the leaderboard, so they are public. Each upload gets a new random id.
+  route('GET', '/avatars/:id', {}, async (req, res, ctx) => {
+    const buf = H.okId(ctx.params[0]) ? await store.getFile(ctx.params[0]) : null;
+    if (!buf) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
+    const type = buf[0] === 0x89 ? 'image/png' : buf[0] === 0x52 ? 'image/webp' : 'image/jpeg';
+    send(res, 200, buf, { 'Content-Type': type, 'Content-Security-Policy': 'sandbox', 'Cache-Control': 'public, max-age=31536000, immutable' });
   });
 
   /* ---------- quiz results ---------- */
@@ -229,7 +281,7 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
     const total = quiz.questions.length;
     const rec = (await store.get('scores', id)) || { id, nick: '', best: {} };
     const quizzes = await store.list('quizzes');
-    const snap = (r) => D.buildProfile({ user: { id }, rec: r, quizzes, config: { courses: [] }, board: [], now: Date.now() });
+    const snap = (r) => D.buildProfile({ user: { id }, rec: r, quizzes, courses: [], board: [], now: Date.now() });
     const before = user ? snap(JSON.parse(JSON.stringify(rec))) : null;
 
     const prev = rec.best[quizId];
