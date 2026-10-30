@@ -21,6 +21,19 @@ const csv = (rows) => rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '
 module.exports = function registerAdmin({ route, store, send }) {
   const A = { admin: true };
 
+  // Prices are whole naira. Used by materials, quizzes and the semester pass.
+  function wholeNaira(v, what, allowBlank) {
+    if (allowBlank && (v === '' || v === null || v === undefined)) return 0;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < (allowBlank ? 0 : 1) || n > 1000000) throw new HttpError(400, 'Enter the ' + what + ' in naira as a whole number, like 500.');
+    return n;
+  }
+  // Marks a material or quiz as paid (with its own price) or free.
+  function readPaid(b, doc) {
+    if (bool(b.paid)) { doc.paid = true; doc.price = wholeNaira(b.price, 'price'); }
+    return doc;
+  }
+
   /* ---------- sign in ---------- */
   route('POST', '/api/admin/login', { limit: ['login', 8, 15 * 60 * 1000] }, async (req, res, ctx) => {
     if (!H.ADMIN_PASSWORD) throw new HttpError(503, 'Admin is not set up. Set the ADMIN_PASSWORD variable on the server.');
@@ -61,6 +74,7 @@ module.exports = function registerAdmin({ route, store, send }) {
     const p = D.pointsFor(rec, quizIds);
     return {
       id: u.id, username: u.username, matric: u.matric || '', facultyId: u.facultyId || '', departmentId: u.departmentId || '', level: u.level || 0, avatarId: u.avatarId || '', createdAt: u.createdAt || null, lastLoginAt: u.lastLoginAt || null,
+      paidUntil: u.paidUntil || '', unlocked: Array.isArray(u.unlocked) ? u.unlocked : [], unlockedCount: Array.isArray(u.unlocked) ? u.unlocked.length : 0,
       disabled: !!u.disabled, hasRecovery: !!u.recovery, points: p.points, done: p.done, rank: D.rankInfo(p.points).title,
       attempts: D.historyOf(rec).length || p.done,
     };
@@ -121,6 +135,21 @@ module.exports = function registerAdmin({ route, store, send }) {
     user.matric = matric; Object.assign(user, place);
     await store.put('users', user);
     send(res, 200, { ok: true });
+  });
+  // Who has paid: a semester pass date and/or single paid items unlocked for this student.
+  route('POST', '/api/admin/users/:id/access', A, async (req, res, ctx) => {
+    const user = await store.get('users', ctx.params[0]);
+    if (!user) throw new HttpError(404, 'Student not found.');
+    const b = ctx.body;
+    const until = String(b.paidUntil || '').trim();
+    if (until && !isDate(until)) throw new HttpError(400, 'Pick a valid date for the semester pass.');
+    const [mats, qzs] = await Promise.all([store.list('materials'), store.list('quizzes')]);
+    const paidIds = new Set(mats.concat(qzs).filter((x) => x.paid).map((x) => x.id));
+    const want = Array.isArray(b.unlocked) ? b.unlocked.map(String) : [];
+    user.paidUntil = until;
+    user.unlocked = Array.from(new Set(want.filter((id) => paidIds.has(id))));
+    await store.put('users', user);
+    send(res, 200, { ok: true, paidUntil: user.paidUntil, unlocked: user.unlocked.length });
   });
   route('DELETE', '/api/admin/users/:id/avatar', A, async (req, res, ctx) => {
     const user = await store.get('users', ctx.params[0]);
@@ -242,6 +271,7 @@ module.exports = function registerAdmin({ route, store, send }) {
     if (!okCourse(course)) throw new HttpError(400, 'Course code must be 2 to 10 letters or digits, like MBH222.');
     if (link && !isHttp(link)) throw new HttpError(400, 'The link must start with http:// or https://.');
     const doc = { id: existing ? existing.id : newId(), title, course, kind, addedAt: existing ? existing.addedAt : Date.now(), pinned: bool(b.pinned), hidden: bool(b.hidden) };
+    readPaid(b, doc);
     if (note) doc.note = note;
     if (link) doc.link = link;
     let fileBuf = null; let dropFile = null;
@@ -308,7 +338,7 @@ module.exports = function registerAdmin({ route, store, send }) {
       const e = clean(q.e, 800); if (e) item.e = e;
       return item;
     });
-    return { id: existing ? existing.id : newId(), title, course, questions, addedAt: existing ? existing.addedAt : Date.now(), hidden: bool(b.hidden) };
+    return readPaid(b, { id: existing ? existing.id : newId(), title, course, questions, addedAt: existing ? existing.addedAt : Date.now(), hidden: bool(b.hidden) });
   }
   route('GET', '/api/admin/quizzes', A, async (req, res) => {
     const [quizzes, scores] = await Promise.all([store.list('quizzes'), store.list('scores')]);
@@ -400,6 +430,8 @@ module.exports = function registerAdmin({ route, store, send }) {
       registrationOpen: bool(b.registrationOpen),
       requireLogin: bool(b.requireLogin),
       leaderboardEnabled: bool(b.leaderboardEnabled),
+      passPrice: wholeNaira(b.passPrice, 'semester pass price', true),
+      passEnds: (() => { const d = String(b.passEnds || '').trim(); if (d && !isDate(d)) throw new HttpError(400, 'Pick a valid last day for the semester pass.'); return d; })(),
       links: {},
     };
     const L = b.links || {};
