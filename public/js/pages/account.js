@@ -1,5 +1,5 @@
-import { html, raw, mount, icon, api, toast, fmtDate, ago, pct, initial, plural, confirmBox } from '../core/ui.js';
-import { emptyState } from './shared.js';
+import { html, raw, mount, icon, api, toast, fmtDate, ago, pct, initial, plural, confirmBox, avatar, squarePhoto } from '../core/ui.js';
+import { emptyState, placeFields, placeChange, hasPlace, deptName, facultyName } from './shared.js';
 
 let nextPath = '/';
 const safeNext = (n) => (n && n.startsWith('/') && !n.startsWith('//') ? n : '/');
@@ -13,18 +13,20 @@ export const auth = {
     const c = config(); const q = nextPath !== '/' ? '?next=' + encodeURIComponent(nextPath) : '';
     const pw = (id, label, extra = '') => html`<label class="field"><span>${label}</span><input id="${id}" name="${id}" type="password" required minlength="6" autocomplete="${id.includes('new') || id === 'reg-pass' ? 'new-password' : 'current-password'}" ${raw(extra)}></label>`;
     if (mode === 'register') {
-      if (!c.registrationOpen) return html`<div class="card auth"><img class="auth-logo" src="/logo.png" alt=""><h2>Registration is closed</h2><p class="lead">New accounts are paused for now. Please check back soon, or log in if you already have one.</p><a class="btn primary block" href="#/login${q}">Log in</a></div>`;
-      return html`<div class="card auth"><img class="auth-logo" src="/logo.png" alt=""><h2>Join the warriors</h2><p class="lead">Free account. Save your scores, earn badges and join the leaderboard.</p>
+      if (!c.registrationOpen) return html`<div class="card auth"><img class="auth-logo" src="/logo-full.png" alt="Altidian"><h2>Registration is closed</h2><p class="lead">New accounts are paused for now. Please check back soon, or log in if you already have one.</p><a class="btn primary block" href="#/login${q}">Log in</a></div>`;
+      return html`<div class="card auth"><img class="auth-logo" src="/logo-full.png" alt="Altidian"><h2>Join the climb</h2><p class="lead">Free account. Save your scores, earn badges and join the leaderboard.</p>
         <div id="auth-msg" class="alert bad" hidden role="alert"></div>
         <form data-submit="do-register" novalidate>
           <label class="field"><span>Username</span><input name="username" required autocomplete="username" maxlength="24" autofocus><small>3 to 24 characters. This is the name others see on the leaderboard.</small></label>
+          <label class="field"><span>Matric / registration number</span><input name="matric" required autocomplete="off" maxlength="25" placeholder="e.g. NDU/MLS/2023/001" style="text-transform:uppercase"><small>Only admins can see this. Each number can be used for one account.</small></label>
+          ${placeFields(S, {})}
           ${pw('reg-pass', 'Password')}
           <label class="field"><span>Recovery phrase</span><input name="phrase" required minlength="4" maxlength="60" autocomplete="off"><small>A secret word or phrase only you know. It is the only way to reset your password if you forget it, so remember it.</small></label>
           <button class="btn primary block" type="submit">Create my account</button></form>
         <p class="muted small" style="text-align:center;margin-top:18px">Already have an account? <a href="#/login${q}">Log in</a></p></div>`;
     }
     if (mode === 'forgot') {
-      return html`<div class="card auth"><img class="auth-logo" src="/logo.png" alt=""><h2>Reset password</h2><p class="lead">Enter your username and the recovery phrase you chose when you signed up.</p>
+      return html`<div class="card auth"><img class="auth-logo" src="/logo-full.png" alt="Altidian"><h2>Reset password</h2><p class="lead">Enter your username and the recovery phrase you chose when you signed up.</p>
         <div id="auth-msg" class="alert bad" hidden role="alert"></div>
         <form data-submit="do-forgot" novalidate>
           <label class="field"><span>Username</span><input name="username" required autocomplete="username" autofocus></label>
@@ -33,7 +35,7 @@ export const auth = {
           <button class="btn primary block" type="submit">Reset password</button></form>
         <p class="muted small" style="text-align:center;margin-top:18px"><a href="#/login${q}">Back to log in</a></p></div>`;
     }
-    return html`<div class="card auth"><img class="auth-logo" src="/logo.png" alt=""><h2>Welcome back</h2><p class="lead">Log in to take quizzes and track your progress.</p>
+    return html`<div class="card auth"><img class="auth-logo" src="/logo-full.png" alt="Altidian"><h2>Welcome back</h2><p class="lead">Log in to take quizzes and track your progress.</p>
       <div id="auth-msg" class="alert bad" hidden role="alert"></div>
       <form data-submit="do-login" novalidate>
         <label class="field"><span>Username</span><input name="username" required autocomplete="username" autofocus></label>
@@ -59,12 +61,16 @@ export const profile = {
     S.profile = p;
     const r = p.rank; const earned = p.badges.filter((b) => b.earned).length;
     return html`
+      ${!hasPlace(p.user) ? html`<div class="alert warning" role="status">Add your department and level in <a href="#settings" data-action="goto-settings">account settings</a> so you see the right courses.</div>` : ''}
       <section class="p-head">
-        <span class="avatar big">${initial(p.user.username)}</span>
+        <div style="text-align:center">${avatar(p.user.username, p.user.avatarId, 'big')}
+          <div class="upload-row" style="justify-content:center"><button class="btn gold small" data-action="avatar-pick" type="button">${icon('upload', 15)} ${p.user.avatarId ? 'Change' : 'Add photo'}</button>${p.user.avatarId ? html`<button class="btn ghost small" style="color:#fff;border-color:rgba(255,255,255,.6)" data-action="avatar-remove" type="button" aria-label="Remove photo">${icon('trash', 15)}</button>` : ''}</div>
+          <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" data-change="avatar-file" hidden></div>
         <div class="grow"><p class="muted small">Student profile</p><h1>${p.user.username}</h1>
-          <p class="muted small">Joined ${fmtDate(p.user.createdAt)}${p.user.lastLoginAt ? ' · last seen ' + ago(p.user.lastLoginAt) : ''}</p>
+          <div class="me-meta">${p.user.matric ? html`<span class="chip">${icon('shield', 13)} ${p.user.matric}</span>` : ''}${hasPlace(p.user) ? html`<span class="chip gold">${deptName(S, p.user.departmentId)}</span><span class="chip">${p.user.level} level</span><span class="chip">${facultyName(S, p.user.facultyId)}</span>` : ''}</div>
+          <p class="muted small" style="margin-top:8px">Joined ${fmtDate(p.user.createdAt)}${p.user.lastLoginAt ? ' · last seen ' + ago(p.user.lastLoginAt) : ''}</p>
           <div class="rankbar"><div class="row between small"><b>${r.title}</b><span>${p.points} pts</span></div><div class="bar"><i style="width:${r.pct}%"></i></div>
-            <p>${r.next ? (r.next.at - p.points) + ' points to ' + r.next.title : 'Top rank reached. Legend!'}</p></div></div>
+            <p>${r.next ? (r.next.at - p.points) + ' points to ' + r.next.title : 'Summit reached. Legend!'}</p></div></div>
       </section>
       <div class="kpis">
         <div class="kpi">${icon('star', 22)}<b>${p.points}</b><span>Total points</span></div>
@@ -88,12 +94,14 @@ export const profile = {
           <div class="bar" style="margin:10px 0 6px"><i style="width:${pct(c.done, c.quizzes)}%"></i></div><p class="small">${c.accuracy === null ? 'No attempts yet' : 'Accuracy ' + c.accuracy + '%'}</p></div>`)}</div></section>` : ''}
 
       <section class="sec"><div class="sec-head"><div><h2>Recent activity</h2></div></div>
-        ${p.recent.length ? html`<div class="card flat"><ol class="lb">${p.recent.map((a) => html`<li><span class="ico-box ${a.pct >= 70 ? '' : 'red'}">${icon(a.pct >= 70 ? 'check' : 'refresh', 20)}</span><span class="grow"><b>${a.title}</b><br><span class="tiny muted">${a.course} · ${ago(a.at)}</span></span><span class="pts">${a.correct}/${a.total}</span></li>`)}</ol></div>` : emptyState('clock', 'No activity yet', 'Finish a quiz and it will show up here.')}</section>
+        ${p.recent.length ? html`<div class="card flat"><ol class="lb">${p.recent.map((a) => html`<li><span class="ico-box ${a.pct >= 70 ? '' : 'brand'}">${icon(a.pct >= 70 ? 'check' : 'refresh', 20)}</span><span class="grow"><b>${a.title}</b><br><span class="tiny muted">${a.course} · ${ago(a.at)}</span></span><span class="pts">${a.correct}/${a.total}</span></li>`)}</ol></div>` : emptyState('clock', 'No activity yet', 'Finish a quiz and it will show up here.')}</section>
 
-      <section class="sec"><div class="sec-head"><div><h2>Account settings</h2><p>Enter your current password to change anything.</p></div></div>
+      <section class="sec" id="settings"><div class="sec-head"><div><h2>Account settings</h2><p>Enter your current password to change anything.</p></div></div>
         <div class="card" style="max-width:640px"><div id="set-msg" class="alert bad" hidden role="alert"></div>
           <form data-submit="do-update" data-box="set-msg" novalidate>
             <label class="field"><span>Current password</span><input name="currentPassword" type="password" required autocomplete="current-password"></label>
+            <label class="field"><span>Matric / registration number</span><input name="newMatric" autocomplete="off" maxlength="25" value="${p.user.matric}" style="text-transform:uppercase"></label>
+            ${placeFields(S, p.user)}
             <div class="grid2"><label class="field"><span>New username</span><input name="newUsername" autocomplete="username" maxlength="24" placeholder="${p.user.username}"></label>
               <label class="field"><span>New password</span><input name="newPassword" type="password" minlength="6" autocomplete="new-password"></label></div>
             <label class="field"><span>New recovery phrase</span><input name="newRecoveryPhrase" autocomplete="off" maxlength="60"><small>Leave blank to keep the one you have.</small></label>
@@ -102,6 +110,23 @@ export const profile = {
 };
 
 export const actions = {
+  'place-fac': (el, ev, { S }) => placeChange(S, el),
+  'place-dep': (el, ev, { S }) => placeChange(S, el),
+  'place-lvl': () => {},
+  'goto-settings'(el, ev) { ev.preventDefault(); document.getElementById('settings').scrollIntoView({ behavior: 'smooth' }); },
+  'avatar-pick'() { document.getElementById('avatar-file').click(); },
+  async 'avatar-file'(el, ev, { load, renderView }) {
+    const file = el.files[0]; if (!file) return;
+    try {
+      const image = await squarePhoto(file);
+      await api('POST', '/api/user/avatar', { image });
+      await load(); toast('Profile picture updated.'); renderView();
+    } catch (e) { toast(e.message, 'bad'); }
+    el.value = '';
+  },
+  async 'avatar-remove'(el, ev, { load, renderView }) {
+    try { await api('DELETE', '/api/user/avatar'); await load(); toast('Picture removed.'); renderView(); } catch (e) { toast(e.message, 'bad'); }
+  },
   'show-pw'(el) { const f = el.closest('form').querySelector('input[type=password],input[data-pw]'); if (f) { f.type = el.checked ? 'text' : 'password'; f.dataset.pw = '1'; } },
   'do-login'(form, ev, { S, load, go }) {
     return sendForm(form, async () => {
@@ -116,11 +141,13 @@ export const actions = {
     return sendForm(form, async () => {
       const f = new FormData(form);
       const username = String(f.get('username')).trim(); const password = String(f.get('reg-pass')); const phrase = String(f.get('phrase')).trim();
-      if (!username || !password || !phrase) throw new Error('Fill in every field.');
+      const matric = String(f.get('matric')).trim();
+      if (!username || !password || !phrase || !matric) throw new Error('Fill in every field.');
+      if (!f.get('facultyId') || !f.get('departmentId') || !f.get('level')) throw new Error('Choose your faculty, department and level.');
       if (password.length < 6) throw new Error('Password must be at least 6 characters.');
       if (phrase.length < 4) throw new Error('Recovery phrase must be at least 4 characters.');
-      await api('POST', '/api/register', { username, password, recoveryPhrase: phrase, deviceId: S.device });
-      await load(); toast('Account created. Welcome to the team!'); go(nextPath);
+      await api('POST', '/api/register', { username, password, recoveryPhrase: phrase, matric, facultyId: f.get('facultyId'), departmentId: f.get('departmentId'), level: Number(f.get('level')), deviceId: S.device });
+      await load(); toast('Account created. Welcome aboard!'); go(nextPath);
     });
   },
   'do-forgot'(form, ev, { load, go }) {
@@ -134,6 +161,8 @@ export const actions = {
     return sendForm(form, async () => {
       const f = new FormData(form);
       const body = { currentPassword: String(f.get('currentPassword')) };
+      const nm = String(f.get('newMatric') || '').trim(); if (nm) body.newMatric = nm;
+      if (f.get('facultyId') && f.get('departmentId') && f.get('level')) { body.facultyId = f.get('facultyId'); body.departmentId = f.get('departmentId'); body.level = Number(f.get('level')); }
       ['newUsername', 'newPassword', 'newRecoveryPhrase'].forEach((k) => { const v = String(f.get(k) || '').trim(); if (v) body[k] = k === 'newPassword' ? String(f.get(k)) : v; });
       const d = await api('POST', '/api/user/update', body);
       toast(d.message); await load(); renderView();

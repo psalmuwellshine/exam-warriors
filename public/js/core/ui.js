@@ -157,6 +157,29 @@ export function toggleTheme() {
 export const pct = (c, t) => (t ? Math.round((c / t) * 100) : 0);
 export const plural = (n, a, b) => n + ' ' + (n === 1 ? a : b || a + 's');
 export const initial = (s) => (String(s).trim()[0] || '?').toUpperCase();
+// A round profile picture, or the first letter of the name when there is no picture.
+export const avatar = (name, id, cls = '') => (id
+  ? html`<span class="avatar ${cls}"><img src="/avatars/${id}" alt="" loading="lazy"></span>`
+  : html`<span class="avatar ${cls}" aria-hidden="true">${initial(name)}</span>`);
+// Shrinks a chosen photo to a 256px square JPEG in the browser before it is uploaded.
+export function squarePhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return reject(new Error('Use a JPG, PNG or WebP picture.'));
+    const r = new FileReader();
+    r.onerror = () => reject(new Error('Could not read that picture.'));
+    r.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not open that picture.'));
+      img.onload = () => {
+        const n = Math.min(img.width, img.height); const c = document.createElement('canvas'); c.width = c.height = 256;
+        c.getContext('2d').drawImage(img, (img.width - n) / 2, (img.height - n) / 2, n, n, 0, 0, 256, 256);
+        resolve({ type: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.86).split(',')[1] });
+      };
+      img.src = String(r.result);
+    };
+    r.readAsDataURL(file);
+  });
+}
 export const kindLabel = { notes: 'Notes', pq: 'Past questions', slides: 'Slides', video: 'Video', other: 'Resource' };
 export const kindIcon = { notes: 'file', pq: 'quiz', slides: 'file', video: 'video', other: 'link' };
 export function debounce(fn, ms = 200) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }

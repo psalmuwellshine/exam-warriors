@@ -1,12 +1,14 @@
-/* Exam Warriors admin control panel. */
-import { html, raw, mount, icon, api, toast, dialog, confirmBox, fmtDate, ago, pct, initial, kindLabel, initTheme, toggleTheme, readFile, debounce, eventDate, todayKey, plural, ApiError } from '../core/ui.js';
+/* Altidian admin control panel. */
+import { html, raw, mount, icon, api, toast, dialog, confirmBox, fmtDate, ago, pct, initial, avatar, kindLabel, initTheme, toggleTheme, readFile, debounce, eventDate, todayKey, plural, ApiError } from '../core/ui.js';
 import { parseBulk } from './bulk.js';
+import { placeFields, placeChange } from '../pages/shared.js';
 
 initTheme();
 const root = document.getElementById('root');
 const SECTIONS = [
   { id: 'overview', label: 'Overview', icon: 'chart' },
   { id: 'students', label: 'Students', icon: 'users' },
+  { id: 'academics', label: 'Academics', icon: 'shield' },
   { id: 'materials', label: 'Materials', icon: 'book' },
   { id: 'quizzes', label: 'Quizzes', icon: 'quiz' },
   { id: 'events', label: 'Events', icon: 'calendar' },
@@ -14,13 +16,17 @@ const SECTIONS = [
   { id: 'board', label: 'Leaderboard', icon: 'trophy' },
   { id: 'settings', label: 'Site settings', icon: 'settings' },
 ];
-const A = { me: null, config: null, cache: {}, search: '' };
+const A = { me: null, config: null, acad: { faculties: [], departments: [], courses: [] }, cache: {}, search: '', dept: '', level: '' };
+const fakeS = () => ({ state: { academics: A.acad } });
+const loadAcad = async () => { A.acad = await api('GET', '/api/admin/academics'); };
+const dName = (id) => (A.acad.departments.find((d) => d.id === id) || {}).name || '';
+const fName = (id) => (A.acad.faculties.find((f) => f.id === id) || {}).name || '';
 const warn = (el, text, kind = 'bad') => { const b = el.querySelector('.msg'); if (!b) return toast(text, kind === 'bad' ? 'bad' : 'ok'); b.className = 'msg alert ' + kind; b.textContent = text; b.hidden = false; b.scrollIntoView({ block: 'nearest' }); };
 
 /* ---------- sign in ---------- */
 function loginView(configured) {
-  mount(root, html`<div class="card login-box"><img class="auth-logo" src="/logo.png" alt=""><h2 style="text-align:center">Admin sign in</h2>
-    <p class="muted" style="text-align:center;margin:6px 0 20px">Exam Warriors control panel</p>
+  mount(root, html`<div class="card login-box"><img class="auth-logo" src="/logo-full.png" alt="Altidian"><h2 style="text-align:center">Admin sign in</h2>
+    <p class="muted" style="text-align:center;margin:6px 0 20px">Altidian control panel</p>
     ${configured ? '' : html`<div class="alert warning">Admin is not set up yet. Add an <b>ADMIN_PASSWORD</b> variable on your host, then redeploy.</div>`}
     <div class="msg alert bad" hidden role="alert"></div>
     <form data-submit="login" novalidate><label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required autofocus></label>
@@ -30,7 +36,7 @@ function loginView(configured) {
 
 /* ---------- shell ---------- */
 function shell(sec) {
-  return html`<div class="adm"><aside class="side"><a class="brand" href="#/overview"><img src="/logo.png" alt=""><span>Exam Warriors<small>Admin panel</small></span></a>
+  return html`<div class="adm"><aside class="side"><a class="brand" href="#/overview"><img src="/logo.png" alt=""><span>Altidian<small>Admin panel</small></span></a>
     <nav aria-label="Admin sections">${SECTIONS.map((s) => html`<a href="#/${s.id}" class="${s.id === sec ? 'on' : ''}">${icon(s.icon, 18)} ${s.label}</a>`)}</nav>
     <div class="foot"><a class="btn ghost small" href="/" target="_blank" rel="noopener">${icon('eye', 16)} View site</a>
       <button class="btn ghost small" data-action="theme" type="button">${icon('moon', 16)} Light / dark</button>
@@ -61,15 +67,31 @@ const views = {
   async students() {
     const list = await api('GET', '/api/admin/users'); A.cache.students = list;
     return html`${head('Students', plural(list.length, 'account') + ' registered.', html`<a class="btn ghost small" href="/api/admin/export/students">${icon('download', 16)} Students CSV</a><a class="btn ghost small" href="/api/admin/export/scores">${icon('download', 16)} Scores CSV</a>`)}
-      <div class="toolbar"><label class="searchbox" style="max-width:360px">${icon('search', 18)}<span class="sr">Search students</span><input type="search" placeholder="Search username" data-input="search-students" value="${A.search}"></label></div>
+      <div class="toolbar"><label class="searchbox" style="max-width:340px">${icon('search', 18)}<span class="sr">Search students</span><input type="search" placeholder="Search username or matric" data-input="search-students" value="${A.search}"></label>
+        <select data-change="stu-dept" style="width:auto;max-width:260px" aria-label="Department"><option value="">All departments</option>${A.acad.departments.map((d) => html`<option value="${d.id}" ${A.dept === d.id ? raw('selected') : ''}>${d.name}</option>`)}</select>
+        <select data-change="stu-level" style="width:auto" aria-label="Level"><option value="">All levels</option>${[100, 200, 300, 400, 500, 600].map((l) => html`<option value="${l}" ${String(A.level) === String(l) ? raw('selected') : ''}>${l} level</option>`)}</select></div>
       <div id="stu-table">${studentTable(list)}</div>`;
+  },
+
+  async academics() {
+    await loadAcad(); const ac = A.acad; A.cache.acad = ac;
+    const deps = (c) => (c.departmentIds.length ? c.departmentIds.map(dName).join(', ') : 'All departments');
+    return html`${head('Academics', 'Faculties, departments or programmes, and the courses taught at each level.', html`<button class="btn ghost" data-action="fac-new" type="button">${icon('plus', 16)} Faculty</button><button class="btn ghost" data-action="dep-new" type="button" ${ac.faculties.length ? '' : raw('disabled')}>${icon('plus', 16)} Department</button><button class="btn primary" data-action="crs-new" type="button">${icon('plus', 16)} Course</button>`)}
+      <section><h3 style="margin-bottom:10px">Faculties</h3>${ac.faculties.length ? html`<div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th class="num">Departments</th><th class="num">Students</th><th></th></tr></thead><tbody>${ac.faculties.map((f) => html`<tr><td><b>${f.name}</b></td><td class="num">${f.departments}</td><td class="num">${f.students}</td>
+        <td><div class="actions"><button class="btn ghost small icon" data-action="fac-edit" data-id="${f.id}" type="button" aria-label="Edit ${f.name}">${icon('edit', 16)}</button><button class="btn ghost small icon" data-action="fac-del" data-id="${f.id}" type="button" aria-label="Delete ${f.name}">${icon('trash', 16)}</button></div></td></tr>`)}</tbody></table></div>` : empty('shield', 'No faculties yet', 'Add a faculty first, then its departments.')}</section>
+      <section class="sec"><h3 style="margin-bottom:10px">Departments and programmes</h3>${ac.departments.length ? html`<div class="tbl-wrap"><table><thead><tr><th>Department</th><th>Faculty</th><th class="num">Levels</th><th class="num">Courses</th><th class="num">Students</th><th></th></tr></thead><tbody>${ac.departments.map((d) => html`<tr><td><b>${d.name}</b></td><td>${fName(d.facultyId)}</td><td class="num">100 to ${d.maxLevel}</td><td class="num">${d.courses}</td><td class="num">${d.students}</td>
+        <td><div class="actions"><button class="btn ghost small icon" data-action="dep-edit" data-id="${d.id}" type="button" aria-label="Edit ${d.name}">${icon('edit', 16)}</button><button class="btn ghost small icon" data-action="dep-del" data-id="${d.id}" type="button" aria-label="Delete ${d.name}">${icon('trash', 16)}</button></div></td></tr>`)}</tbody></table></div>` : empty('users', 'No departments yet', 'Add the departments or programmes students can pick.')}</section>
+      <section class="sec"><div class="toolbar"><h3 style="margin-right:auto">Courses</h3>
+        <select data-change="crs-dept" style="width:auto;max-width:240px" aria-label="Department"><option value="">All departments</option>${ac.departments.map((d) => html`<option value="${d.id}" ${A.cdept === d.id ? raw('selected') : ''}>${d.name}</option>`)}</select>
+        <select data-change="crs-level" style="width:auto" aria-label="Level"><option value="">All levels</option>${[100, 200, 300, 400, 500, 600].map((l) => html`<option value="${l}" ${String(A.clevel) === String(l) ? raw('selected') : ''}>${l} level</option>`)}</select></div>
+        <div id="crs-table">${courseTable(ac, deps)}</div></section>`;
   },
 
   async materials() {
     const list = await api('GET', '/api/admin/materials'); A.cache.materials = list;
     return html`${head('Materials', plural(list.length, 'resource') + '. Notes, past questions, slides, videos and links.', html`<button class="btn primary" data-action="mat-new" type="button">${icon('plus', 18)} Add material</button>`)}
       ${list.length ? html`<div class="tbl-wrap"><table><thead><tr><th>Title</th><th>Course</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>${list.map((m) => html`<tr><td><b>${m.title}</b><br><span class="tiny muted">${m.fileName || m.link || 'Notes only'}</span></td><td><span class="chip">${m.course}</span></td><td>${kindLabel[m.kind] || m.kind}</td>
-        <td>${m.pinned ? html`<span class="chip red">Pinned</span> ` : ''}${m.hidden ? html`<span class="chip grey">Hidden</span>` : html`<span class="chip good">Live</span>`}</td>
+        <td>${m.pinned ? html`<span class="chip brand">Pinned</span> ` : ''}${m.hidden ? html`<span class="chip grey">Hidden</span>` : html`<span class="chip good">Live</span>`}</td>
         <td><div class="actions"><button class="btn ghost small icon" data-action="mat-pin" data-id="${m.id}" type="button" title="${m.pinned ? 'Unpin' : 'Pin to top'}" aria-label="${m.pinned ? 'Unpin' : 'Pin'}">${icon('pin', 17)}</button>
         <button class="btn ghost small icon" data-action="mat-hide" data-id="${m.id}" type="button" title="${m.hidden ? 'Show' : 'Hide'}" aria-label="${m.hidden ? 'Show' : 'Hide'}">${icon(m.hidden ? 'eye' : 'eyeoff', 17)}</button>
         <button class="btn ghost small icon" data-action="mat-edit" data-id="${m.id}" type="button" title="Edit" aria-label="Edit ${m.title}">${icon('edit', 17)}</button>
@@ -116,6 +138,7 @@ const views = {
       <form data-submit="settings-save" novalidate style="max-width:760px"><div class="msg alert bad" hidden role="alert"></div>
         <div class="card"><h3 style="margin-bottom:12px">Home page text</h3>
           <div class="grid2"><label class="field"><span>Site name</span><input name="siteName" maxlength="60" value="${c.siteName}"></label><label class="field"><span>Tagline</span><input name="tagline" maxlength="120" value="${c.tagline}"></label></div>
+          <label class="field"><span>Motto (small italic line in the footer)</span><input name="motto" maxlength="60" value="${c.motto || ''}"></label>
           <label class="field"><span>Hero headline</span><input name="heroTitle" maxlength="90" value="${c.heroTitle}"></label>
           <label class="field"><span>Hero text</span><textarea name="heroText" maxlength="300">${c.heroText}</textarea></label>
           <label class="field"><span>Footer text</span><input name="footerText" maxlength="120" value="${c.footerText}"></label></div>
@@ -123,8 +146,6 @@ const views = {
           ${tg('registrationOpen', c.registrationOpen, 'Allow new registrations', 'Turn off to stop new accounts being created.')}
           ${tg('requireLogin', c.requireLogin, 'Require login for quizzes', 'When off, guests can take quizzes, but scores are stored per device.')}
           ${tg('leaderboardEnabled', c.leaderboardEnabled, 'Show the leaderboard', 'Hides rankings everywhere on the site.')}</div>
-        <div class="card" style="margin-top:16px"><h3 style="margin-bottom:6px">Courses</h3><p class="muted small" style="margin-bottom:10px">One per line, like <span class="mono">MBH222 - Metabolism of Macromolecules</span>. These feed the course lists in the admin forms.</p>
-          <textarea class="code" name="courses">${c.courses.map((x) => x.code + (x.name ? ' - ' + x.name : '')).join('\n')}</textarea></div>
         <div class="card" style="margin-top:16px"><h3 style="margin-bottom:12px">Contact links</h3><p class="muted small" style="margin-bottom:12px">Shown in the site footer. Leave blank to hide.</p>
           <div class="grid2"><label class="field"><span>WhatsApp link</span><input name="whatsapp" inputmode="url" placeholder="https://" value="${L.whatsapp}"></label><label class="field"><span>Telegram link</span><input name="telegram" inputmode="url" placeholder="https://" value="${L.telegram}"></label>
           <label class="field"><span>Instagram link</span><input name="instagram" inputmode="url" placeholder="https://" value="${L.instagram}"></label><label class="field"><span>Website</span><input name="website" inputmode="url" placeholder="https://" value="${L.website}"></label></div>
@@ -133,14 +154,22 @@ const views = {
   },
 };
 
+function courseTable(ac, deps) {
+  const rows = ac.courses.filter((c) => (!A.clevel || String(c.level) === String(A.clevel)) && (!A.cdept || !c.departmentIds.length || c.departmentIds.includes(A.cdept)));
+  if (!rows.length) return empty('book', 'No courses here', 'Add a course, or change the filters.');
+  deps = deps || ((c) => (c.departmentIds.length ? c.departmentIds.map(dName).join(', ') : 'All departments'));
+  return html`<div class="tbl-wrap"><table><thead><tr><th>Code</th><th>Title</th><th class="num">Level</th><th>Taught to</th><th></th></tr></thead><tbody>${rows.map((c) => html`<tr><td><span class="chip">${c.code}</span></td><td>${c.name || '—'}</td><td class="num">${c.level}</td><td>${deps(c)}</td>
+    <td><div class="actions"><button class="btn ghost small icon" data-action="crs-edit" data-id="${c.id}" type="button" aria-label="Edit ${c.code}">${icon('edit', 16)}</button><button class="btn ghost small icon" data-action="crs-del" data-id="${c.id}" type="button" aria-label="Delete ${c.code}">${icon('trash', 16)}</button></div></td></tr>`)}</tbody></table></div>`;
+}
 function studentTable(list) {
   const q = A.search.trim().toLowerCase();
-  const rows = list.filter((u) => !q || u.username.toLowerCase().includes(q));
+  const rows = list.filter((u) => (!q || u.username.toLowerCase().includes(q) || (u.matric || '').toLowerCase().includes(q)) && (!A.dept || u.departmentId === A.dept) && (!A.level || String(u.level) === String(A.level)));
   if (!rows.length) return empty('users', q ? 'No match' : 'No students yet', q ? 'Try another name.' : 'Students show up here after they register.');
-  return html`<div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Rank</th><th class="num">Points</th><th class="num">Quizzes</th><th>Last login</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((u) => html`<tr>
-    <td><b>${u.username}</b><br><span class="tiny muted">Joined ${fmtDate(u.createdAt)}${u.hasRecovery ? '' : ' · no recovery phrase'}</span></td><td>${u.rank}</td><td class="num">${u.points}</td><td class="num">${u.done}</td><td>${ago(u.lastLoginAt)}</td>
-    <td>${u.disabled ? html`<span class="chip red">Disabled</span>` : html`<span class="chip good">Active</span>`}</td>
+  return html`<div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Department</th><th>Rank</th><th class="num">Points</th><th class="num">Quizzes</th><th>Last login</th><th>Status</th><th></th></tr></thead><tbody>${rows.map((u) => html`<tr>
+    <td><div class="row gap-s">${avatar(u.username, u.avatarId, 'sm')}<span><b>${u.username}</b><br><span class="tiny muted mono">${u.matric || 'no matric number'}</span></span></div></td><td>${u.departmentId ? dName(u.departmentId) : html`<span class="muted">Not set</span>`}${u.level ? html`<br><span class="tiny muted">${u.level} level</span>` : ''}</td><td>${u.rank}</td><td class="num">${u.points}</td><td class="num">${u.done}</td><td>${ago(u.lastLoginAt)}</td>
+    <td>${u.disabled ? html`<span class="chip bad">Disabled</span>` : html`<span class="chip good">Active</span>`}</td>
     <td><div class="actions"><button class="btn ghost small" data-action="stu-view" data-id="${u.id}" type="button">View</button>
+    <button class="btn ghost small icon" data-action="stu-edit" data-id="${u.id}" type="button" aria-label="Edit ${u.username}">${icon('edit', 16)}</button>
     <button class="btn ghost small" data-action="stu-pw" data-id="${u.id}" data-name="${u.username}" type="button">${icon('lock', 15)} Password</button>
     <button class="btn ghost small" data-action="stu-disable" data-id="${u.id}" data-name="${u.username}" data-state="${u.disabled ? 1 : 0}" type="button">${u.disabled ? 'Enable' : 'Disable'}</button>
     <button class="btn ghost small icon" data-action="stu-del" data-id="${u.id}" data-name="${u.username}" type="button" aria-label="Delete ${u.username}">${icon('trash', 16)}</button></div></td></tr>`)}</tbody></table></div>`;
@@ -167,13 +196,13 @@ async function route() {
 const reload = () => route();
 
 /* ---------- dialogs: materials ---------- */
-const courseOptions = (sel) => (A.config ? A.config.courses : []).map((c) => html`<option value="${c.code}" ${c.code === sel ? raw('selected') : ''}>${c.code}${c.name ? ' · ' + c.name : ''}</option>`);
+const courseSelect = (sel) => html`<option value="">Choose a course</option>${A.acad.courses.map((c) => html`<option value="${c.code}" ${c.code === sel ? raw('selected') : ''}>${c.code}${c.name ? ' · ' + c.name : ''} (${c.level}${c.departmentIds.length ? '' : ', all depts'})</option>`)}${sel && !A.acad.courses.some((c) => c.code === sel) ? html`<option value="${sel}" selected>${sel} (not in Academics yet)</option>` : ''}`;
 function materialDialog(m) {
   const edit = !!m;
   const { box, close } = dialog(html`<h3>${edit ? 'Edit material' : 'Add material'}</h3><div class="msg alert bad" hidden role="alert"></div>
     <form data-submit="mat-save" novalidate>
       <label class="field"><span>Title</span><input name="title" maxlength="120" required value="${edit ? m.title : ''}" autofocus></label>
-      <div class="grid2"><label class="field"><span>Course code</span><input name="course" list="courses" maxlength="10" required value="${edit ? m.course : ''}" placeholder="MBH222" style="text-transform:uppercase"><datalist id="courses">${(A.config ? A.config.courses : []).map((c) => html`<option value="${c.code}">${c.name}</option>`)}</datalist></label>
+      <div class="grid2"><label class="field"><span>Course</span><select name="course" required>${courseSelect(edit ? m.course : '')}</select></label>
       <label class="field"><span>Type</span><select name="kind">${Object.keys(kindLabel).map((k) => html`<option value="${k}" ${edit && m.kind === k ? raw('selected') : ''}>${kindLabel[k]}</option>`)}</select></label></div>
       <label class="field"><span>Notes (optional)</span><textarea name="note" maxlength="8000">${edit ? m.note || '' : ''}</textarea></label>
       <label class="field"><span>Link (optional)</span><input name="link" inputmode="url" placeholder="https://… YouTube, Drive, etc." value="${edit ? m.link || '' : ''}"></label>
@@ -207,7 +236,7 @@ function quizDialog(qz) {
   const { box, close } = dialog(html`<h3>${qz ? 'Edit quiz' : 'New quiz'}</h3><div class="msg alert bad" hidden role="alert"></div>
     <form data-submit="qz-save" novalidate>
       <div class="grid2"><label class="field"><span>Quiz title</span><input name="title" maxlength="120" required value="${Q.title}" autofocus></label>
-      <label class="field"><span>Course code</span><input name="course" list="courses2" maxlength="10" required value="${Q.course}" placeholder="MBH222" style="text-transform:uppercase"><datalist id="courses2">${(A.config ? A.config.courses : []).map((c) => html`<option value="${c.code}">${c.name}</option>`)}</datalist></label></div>
+      <label class="field"><span>Course</span><select name="course" required>${courseSelect(Q.course)}</select></label></div>
       <label class="check" style="margin-bottom:16px"><input type="checkbox" name="hidden" ${Q.hidden ? raw('checked') : ''}> Hidden from students (draft)</label>
       <div id="q-list">${qEditor()}</div>
       <div class="row gap-s wrap-r" style="margin-bottom:18px"><button class="btn ghost small" data-action="qz-addq" type="button">${icon('plus', 15)} Add question</button><button class="btn ghost small" data-action="qz-bulk" type="button">${icon('upload', 15)} Paste many questions</button></div>
@@ -261,8 +290,8 @@ const actions = {
   /* students */
   async 'stu-view'(el) {
     const p = await api('GET', '/api/admin/users/' + el.dataset.id);
-    dialog(html`<div class="row gap"><span class="avatar big" style="width:64px;height:64px;font-size:28px">${initial(p.user.username)}</span><div><h3 style="margin:0">${p.user.username}</h3><p class="muted small">Joined ${fmtDate(p.user.createdAt)} · last login ${ago(p.user.lastLoginAt)}</p>
-      <p style="margin-top:4px"><span class="chip red">${p.rank.title}</span> ${p.user.disabled ? html`<span class="chip grey">Disabled</span>` : ''} ${p.user.hasRecovery ? '' : html`<span class="chip grey">No recovery phrase</span>`}</p></div></div>
+    dialog(html`<div class="row gap">${avatar(p.user.username, p.user.avatarId, 'md')}<div><h3 style="margin:0">${p.user.username}</h3><p class="muted small">${p.user.matric || 'No matric number'} · ${p.user.departmentId ? dName(p.user.departmentId) + ', ' + p.user.level + ' level' : 'department not set'}</p><p class="muted small">Joined ${fmtDate(p.user.createdAt)} · last login ${ago(p.user.lastLoginAt)}</p>
+      <p style="margin-top:4px"><span class="chip brand">${p.rank.title}</span> ${p.user.disabled ? html`<span class="chip grey">Disabled</span>` : ''} ${p.user.hasRecovery ? '' : html`<span class="chip grey">No recovery phrase</span>`}</p></div></div>
       <div class="kpis" style="margin:16px 0"><div class="kpi"><b>${p.points}</b><span>Points</span></div><div class="kpi"><b>${p.done}</b><span>Quizzes</span></div><div class="kpi"><b>${p.accuracy === null ? '—' : p.accuracy + '%'}</b><span>Accuracy</span></div><div class="kpi"><b>${p.streak.longest}</b><span>Best streak</span></div></div>
       ${p.quizzes.some((q) => q.best) ? html`<div class="tbl-wrap"><table><thead><tr><th>Quiz</th><th class="num">Best</th><th class="num">Tries</th></tr></thead><tbody>${p.quizzes.filter((q) => q.best).map((q) => html`<tr><td>${q.title} <span class="chip">${q.course}</span></td><td class="num">${q.best.correct}/${q.best.total}</td><td class="num">${q.attempts}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">No quiz scores yet.</p>`}
       <div class="row end gap" style="margin-top:18px"><button class="btn ghost small" data-action="stu-clear" data-id="${el.dataset.id}" data-name="${p.user.username}" type="button">Clear scores</button><button class="btn primary" data-close type="button">Close</button></div>`, { wide: true });
@@ -381,15 +410,90 @@ const submits = {
   },
   async 'settings-save'(form) {
     await busy(form, async () => {
-      const lines = String(new FormData(form).get('courses') || '').split('\n').map((l) => l.trim()).filter(Boolean);
-      const courses = lines.map((l) => { const m = l.match(/^([A-Za-z0-9]+)\s*[-–:]?\s*(.*)$/); return { code: m ? m[1] : l, name: m ? m[2] : '' }; });
-      const body = { siteName: val(form, 'siteName'), tagline: val(form, 'tagline'), heroTitle: val(form, 'heroTitle'), heroText: val(form, 'heroText'), footerText: val(form, 'footerText'),
-        registrationOpen: chk(form, 'registrationOpen'), requireLogin: chk(form, 'requireLogin'), leaderboardEnabled: chk(form, 'leaderboardEnabled'), courses,
+      const body = { siteName: val(form, 'siteName'), tagline: val(form, 'tagline'), motto: val(form, 'motto'), heroTitle: val(form, 'heroTitle'), heroText: val(form, 'heroText'), footerText: val(form, 'footerText'),
+        registrationOpen: chk(form, 'registrationOpen'), requireLogin: chk(form, 'requireLogin'), leaderboardEnabled: chk(form, 'leaderboardEnabled'),
         links: { whatsapp: val(form, 'whatsapp'), telegram: val(form, 'telegram'), instagram: val(form, 'instagram'), website: val(form, 'website'), email: val(form, 'email') } };
       A.config = await api('PUT', '/api/admin/config', body); toast('Settings saved. The site is updated.');
     });
   },
 };
+
+
+/* ---------- academics, student edit ---------- */
+const lvlOpts = (sel) => [100, 200, 300, 400, 500, 600].map((l) => html`<option value="${l}" ${Number(sel) === l ? raw('selected') : ''}>${l} level</option>`);
+function simpleDialog(title, body, formId, id) {
+  const { box, close } = dialog(html`<h3>${title}</h3><div class="msg alert bad" hidden role="alert"></div><form data-submit="${formId}" data-id="${id || ''}" novalidate>${body}
+    <div class="row end gap"><button class="btn ghost" data-close type="button">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>`);
+  box.querySelector('form').closeFn = close; return box;
+}
+const acadByCache = (k, id) => A.acad[k].find((x) => x.id === id);
+const acadReload = async () => { await loadAcad(); reload(); };
+Object.assign(actions, {
+  'place-fac': (el) => placeChange(fakeS(), el),
+  'place-dep': (el) => placeChange(fakeS(), el),
+  'stu-dept': (el) => { A.dept = el.value; const t = document.getElementById('stu-table'); if (t) t.innerHTML = studentTable(A.cache.students || []).s; },
+  'stu-level': (el) => { A.level = el.value; const t = document.getElementById('stu-table'); if (t) t.innerHTML = studentTable(A.cache.students || []).s; },
+  'crs-dept': (el) => { A.cdept = el.value; document.getElementById('crs-table').innerHTML = courseTable(A.acad).s; },
+  'crs-level': (el) => { A.clevel = el.value; document.getElementById('crs-table').innerHTML = courseTable(A.acad).s; },
+
+  'fac-new': () => simpleDialog('Add faculty', html`<label class="field"><span>Faculty name</span><input name="name" maxlength="90" required autofocus placeholder="e.g. Basic Medical Sciences"></label>`, 'fac-save'),
+  'fac-edit'(el) { const f = acadByCache('faculties', el.dataset.id); simpleDialog('Edit faculty', html`<label class="field"><span>Faculty name</span><input name="name" maxlength="90" required autofocus value="${f.name}"></label>`, 'fac-save', f.id); },
+  async 'fac-del'(el) { const f = acadByCache('faculties', el.dataset.id); if (!(await sure('Delete ' + f.name + '?', 'Only possible when it has no departments or students.', 'Delete'))) return; await api('DELETE', '/api/admin/faculties/' + f.id); toast('Deleted.'); acadReload(); },
+
+  'dep-new': () => depDialog(null),
+  'dep-edit': (el) => depDialog(acadByCache('departments', el.dataset.id)),
+  async 'dep-del'(el) { const d = acadByCache('departments', el.dataset.id); if (!(await sure('Delete ' + d.name + '?', 'Only possible when no students are registered in it. It is removed from its courses.', 'Delete'))) return; await api('DELETE', '/api/admin/departments/' + d.id); toast('Deleted.'); acadReload(); },
+
+  'crs-new': () => crsDialog(null),
+  'crs-edit': (el) => crsDialog(acadByCache('courses', el.dataset.id)),
+  async 'crs-del'(el) { const c = acadByCache('courses', el.dataset.id); if (!(await sure('Delete ' + c.code + '?', 'Only possible when no materials or quizzes use it.', 'Delete'))) return; await api('DELETE', '/api/admin/courses/' + c.id); toast('Deleted.'); acadReload(); },
+  'crs-all'(el) { el.closest('form').querySelectorAll('[name=departmentIds]').forEach((c) => { c.disabled = el.checked; if (el.checked) c.checked = false; }); },
+
+  'stu-edit'(el) {
+    const u = (A.cache.students || []).find((x) => x.id === el.dataset.id); if (!u) return;
+    simpleDialog('Edit ' + u.username, html`<label class="field"><span>Matric / registration number</span><input name="matric" maxlength="25" required value="${u.matric}" style="text-transform:uppercase" autofocus></label>${placeFields(fakeS(), u)}
+      ${u.avatarId ? html`<p class="small"><button class="btn ghost small" data-action="stu-avatar-del" data-id="${u.id}" type="button">${icon('trash', 15)} Remove profile picture</button></p>` : ''}`, 'stu-edit-save', u.id);
+  },
+  async 'stu-avatar-del'(el) { await api('DELETE', `/api/admin/users/${el.dataset.id}/avatar`); toast('Picture removed.'); el.remove(); reload(); },
+});
+function depDialog(d) {
+  simpleDialog(d ? 'Edit department' : 'Add department', html`<label class="field"><span>Department or programme name</span><input name="name" maxlength="90" required autofocus value="${d ? d.name : ''}" placeholder="e.g. Medical Laboratory Science"></label>
+    <div class="grid2"><label class="field"><span>Faculty</span><select name="facultyId" required>${A.acad.faculties.map((f) => html`<option value="${f.id}" ${d && d.facultyId === f.id ? raw('selected') : ''}>${f.name}</option>`)}</select></label>
+    <label class="field"><span>Highest level</span><select name="maxLevel">${lvlOpts(d ? d.maxLevel : 400)}</select><small>Students can pick 100 up to this level.</small></label></div>`, 'dep-save', d && d.id);
+}
+function crsDialog(c) {
+  const all = !c || !c.departmentIds.length;
+  simpleDialog(c ? 'Edit course' : 'Add course', html`<div class="grid2"><label class="field"><span>Course code</span><input name="code" maxlength="10" required value="${c ? c.code : ''}" placeholder="MBH222" style="text-transform:uppercase" autofocus></label>
+    <label class="field"><span>Level</span><select name="level">${lvlOpts(c ? c.level : 200)}</select></label></div>
+    <label class="field"><span>Course title</span><input name="name" maxlength="90" value="${c ? c.name : ''}"></label>
+    <fieldset class="field" style="border:0;padding:0;margin:0 0 16px"><legend style="font-weight:700;font-size:14.5px;margin-bottom:6px">Taught to</legend>
+      <label class="check" style="margin-bottom:8px"><input type="checkbox" name="all" data-change="crs-all" ${all ? raw('checked') : ''}> All departments (for example GST courses)</label>
+      ${A.acad.departments.map((d) => html`<label class="check small" style="margin:4px 0 4px 6px"><input type="checkbox" name="departmentIds" value="${d.id}" ${!all && c.departmentIds.includes(d.id) ? raw('checked') : ''} ${all ? raw('disabled') : ''}> ${d.name} <span class="muted">· ${fName(d.facultyId)}</span></label>`)}</fieldset>`, 'crs-save', c && c.id);
+}
+Object.assign(actions, { 'crs-all': (el) => { el.closest('form').querySelectorAll('[name=departmentIds]').forEach((c) => { c.disabled = el.checked; if (el.checked) c.checked = false; }); } });
+Object.assign(submits, {
+  async 'fac-save'(form) { await busy(form, async () => { const id = form.dataset.id; await api(id ? 'PUT' : 'POST', '/api/admin/faculties' + (id ? '/' + id : ''), { name: val(form, 'name') }); form.closeFn(); toast('Saved.'); acadReload(); }); },
+  async 'dep-save'(form) { await busy(form, async () => { const id = form.dataset.id; await api(id ? 'PUT' : 'POST', '/api/admin/departments' + (id ? '/' + id : ''), { name: val(form, 'name'), facultyId: val(form, 'facultyId'), maxLevel: Number(val(form, 'maxLevel')) }); form.closeFn(); toast('Saved.'); acadReload(); }); },
+  async 'crs-save'(form) {
+    await busy(form, async () => {
+      const id = form.dataset.id; const all = chk(form, 'all');
+      const departmentIds = all ? [] : [...form.querySelectorAll('[name=departmentIds]:checked')].map((x) => x.value);
+      await api(id ? 'PUT' : 'POST', '/api/admin/courses' + (id ? '/' + id : ''), { code: val(form, 'code').toUpperCase(), name: val(form, 'name'), level: Number(val(form, 'level')), departmentIds });
+      form.closeFn(); toast('Saved.'); acadReload();
+    });
+  },
+  async 'stu-edit-save'(form) {
+    await busy(form, async () => {
+      if (!val(form, 'facultyId') || !val(form, 'departmentId') || !val(form, 'level')) throw new Error('Choose faculty, department and level.');
+      await api('PUT', '/api/admin/users/' + form.dataset.id, { matric: val(form, 'matric'), facultyId: val(form, 'facultyId'), departmentId: val(form, 'departmentId'), level: Number(val(form, 'level')) });
+      form.closeFn(); toast('Student updated.'); reload();
+    });
+  },
+});
+document.addEventListener('change', async (ev) => {
+  const el = ev.target.closest('[data-change]'); if (!el || !actions[el.dataset.change]) return;
+  try { await actions[el.dataset.change](el, ev); } catch (e) { toast(e.message, 'bad'); }
+});
 
 document.addEventListener('click', async (ev) => {
   const el = ev.target.closest('[data-action]'); if (!el || !actions[el.dataset.action]) return;
@@ -405,7 +509,7 @@ window.addEventListener('hashchange', () => { if (A.me && A.me.admin) route(); }
 async function start() {
   try { A.me = await api('GET', '/api/admin/me'); } catch (e) { root.textContent = e.message; return; }
   if (!A.me.admin) return loginView(A.me.configured);
-  try { A.config = await api('GET', '/api/admin/config'); } catch (e) { /* settings load later */ }
+  try { A.config = await api('GET', '/api/admin/config'); await loadAcad(); } catch (e) { /* loaded later */ }
   route();
 }
 start();

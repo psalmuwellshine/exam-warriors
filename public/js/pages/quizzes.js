@@ -1,15 +1,19 @@
 import { html, mount, icon, api, toast, pct, esc } from '../core/ui.js';
-import { quizCard, emptyState } from './shared.js';
+import { quizCard, emptyState, scopeBar, inScope, currentScope, scopeState } from './shared.js';
 
 const F = { course: '' };
 
 export async function render({ S, user, config }) {
   const st = S.state; const best = (st.me && st.me.best) || {};
-  const courses = [...new Set(st.quizzes.map((q) => q.course))].sort();
-  const list = st.quizzes.filter((q) => !F.course || q.course === F.course);
+  const u = user(); const sc = currentScope(u);
+  const pool = st.quizzes.filter((q) => inScope(S, u, sc, q.course));
+  if (F.course && !pool.some((q) => q.course === F.course)) F.course = '';
+  const courses = [...new Set(pool.map((q) => q.course))].sort();
+  const list = pool.filter((q) => !F.course || q.course === F.course);
   const gate = config().requireLogin && !user();
   return html`<div class="sec-head"><div><h2>Quizzes</h2><p>Practise, see the right answer straight away, and climb the leaderboard.</p></div></div>
     ${gate ? html`<div class="alert info">You need an account to take quizzes and save your scores. <a href="#/login?next=%2Fquizzes">Log in</a> or <a href="#/register">create one free</a>.</div>` : ''}
+    ${scopeBar(S, u, 'qz-scope')}
     ${courses.length > 1 ? html`<div class="filters"><button class="pill ${F.course ? '' : 'on'}" data-action="qz-course" data-v="" type="button">All courses</button>${courses.map((c) => html`<button class="pill ${F.course === c ? 'on' : ''}" data-action="qz-course" data-v="${c}" type="button">${c}</button>`)}</div>` : ''}
     ${list.length ? html`<div class="cards">${list.map((q) => quizCard(q, best[q.id], null))}</div>` : emptyState('quiz', 'No quizzes yet', 'New quizzes will appear here soon.')}`;
 }
@@ -40,7 +44,7 @@ function resultScreen() {
   const msg = p === 100 ? 'Flawless! 🔥' : p >= 70 ? 'Strong work!' : p >= 50 ? 'Good effort. Go again?' : 'Keep practising, you will get there.';
   return html`<div class="result card pop"><div class="ring" style="--p:${p}"><b>${p}<small>%</small></b></div>
     <h2>${msg}</h2><p class="muted" style="margin-top:6px">You got <b>${r.correct}</b> of <b>${r.total}</b> in ${quiz.title}.</p>
-    <p style="margin-top:12px">${r.improved ? html`<span class="chip good">${icon('star', 13)} New best score</span>` : html`<span class="chip grey">Your best score stays the same</span>`} ${r.rank ? html`<span class="chip red">${r.rank} · ${r.points} pts</span>` : ''}</p>
+    <p style="margin-top:12px">${r.improved ? html`<span class="chip good">${icon('star', 13)} New best score</span>` : html`<span class="chip grey">Your best score stays the same</span>`} ${r.rank ? html`<span class="chip brand">${r.rank} · ${r.points} pts</span>` : ''}</p>
     ${r.newBadges && r.newBadges.length ? html`<div class="alert warning" style="margin-top:16px">${icon('medal', 18)} New badge${r.newBadges.length > 1 ? 's' : ''} unlocked: <b>${r.newBadges.join(', ')}</b></div>` : ''}
     ${r.guest ? html`<div class="alert info" style="margin-top:16px">Create an account to keep your scores safe. <a href="#/register">Sign up</a></div>` : ''}
     <div class="row gap wrap-r" style="justify-content:center;margin-top:20px">
@@ -53,7 +57,7 @@ function reviewHtml() {
   const { quiz } = run;
   return html`<h3 style="margin:28px 0 12px">Your answers</h3>${quiz.questions.map((q, i) => {
     const a = run.answers[i]; const ok = a === q.a;
-    return html`<div class="card flat" style="margin-bottom:12px"><div class="row gap-s">${ok ? html`<span class="chip good">${icon('check', 13)} Correct</span>` : html`<span class="chip red">${icon('x', 13)} Wrong</span>`}<span class="muted small">Question ${i + 1}</span></div>
+    return html`<div class="card flat" style="margin-bottom:12px"><div class="row gap-s">${ok ? html`<span class="chip good">${icon('check', 13)} Correct</span>` : html`<span class="chip bad">${icon("x", 13)} Wrong</span>`}<span class="muted small">Question ${i + 1}</span></div>
       <p style="font-weight:700;margin:8px 0">${q.q}</p>
       <p class="small"><b>Your answer:</b> ${a === null || a === undefined ? '— skipped' : q.o[a]}</p>
       ${ok ? '' : html`<p class="small"><b>Correct answer:</b> ${q.o[q.a]}</p>`}
@@ -75,6 +79,7 @@ export const runner = {
 runner.needsLogin.displayName = 'needsLogin';
 
 export const actions = {
+  'qz-scope': (el, ev, { renderView }) => { scopeState.v = el.dataset.v; F.course = ''; renderView(); },
   'qz-course': (el, ev, { renderView }) => { F.course = el.dataset.v; renderView(); },
   'qz-pick'(el) {
     if (!run || run.picked !== null) return;
