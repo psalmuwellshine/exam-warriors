@@ -50,10 +50,10 @@ function renderChrome() {
   mount(shell, html`
     <header class="topbar"><div class="wrap in">
       <a class="brand" href="#/"><img src="/logo.png" alt=""><span>${c.siteName}</span></a>
-      <nav class="nav" aria-label="Main">${PAGES.map((p) => html`<a href="#${p.path}" class="${cur === p.id ? 'on' : ''}" ${cur === p.id ? raw('aria-current="page"') : ''}>${icon(p.icon, 18)}${p.label}</a>`)}</nav>
+      ${u ? html`<nav class="nav" aria-label="Main">${PAGES.map((p) => html`<a href="#${p.path}" class="${cur === p.id ? 'on' : ''}" ${cur === p.id ? raw('aria-current="page"') : ''}>${icon(p.icon, 18)}${p.label}</a>`)}</nav>` : html`<span></span>`}
       <div class="top-end">
         <button class="icon-btn" data-action="theme" type="button" aria-label="Switch light and dark mode">${icon('moon', 19)}</button>
-        ${u ? html`<a class="avatar" href="#/profile" aria-label="Your profile (${u.username})">${initial(u.username)}</a>` : html`<a class="btn primary small" href="#/login">Log in</a>`}
+        ${u ? html`<a class="avatar" href="#/profile" aria-label="Your profile (${u.username})">${initial(u.username)}</a>` : ''}
       </div>
     </div></header>
     ${S.state.notice ? html`<div class="notice ${S.state.notice.level}" role="status"><div class="wrap">${icon('bell', 19)}<span>${S.state.notice.text}</span></div></div>` : ''}
@@ -69,9 +69,9 @@ function renderChrome() {
         <a href="#" data-action="share">Share site</a>
       </div>
     </div></footer>
-    <nav class="tabbar" aria-label="Main">${PAGES.map((p) => html`<a class="tab ${cur === p.id ? 'on' : ''}" href="#${p.path}">${icon(p.icon, 22)}<span>${p.label}</span></a>`)}</nav>`);
+    ${u ? html`<nav class="tabbar" aria-label="Main">${PAGES.map((p) => html`<a class="tab ${cur === p.id ? 'on' : ''}" href="#${p.path}">${icon(p.icon, 22)}<span>${p.label}</span></a>`)}</nav>` : ''}`);
   if (oldView) document.getElementById('view').replaceWith(oldView); // keep the page the student is on
-  document.body.classList.add('has-tabs');
+  document.body.classList.toggle('has-tabs', !!u);
   document.title = c.siteName + (cur === 'home' ? ' · ' + (c.tagline || 'Study smarter') : '');
 }
 
@@ -107,6 +107,12 @@ async function route() {
   else if (['/login', '/register', '/forgot'].includes(path)) { page = account.auth; params = { mode: path.slice(1) }; }
   else page = null;
 
+  const isAuthPage = ['/login', '/register', '/forgot'].includes(path);
+  if (!user() && !isAuthPage) { // logged-out visitors always land on the login page first
+    go(path === '/' ? '/login' : '/login?next=' + encodeURIComponent(full));
+    return;
+  }
+
   renderChrome();
   const view = document.getElementById('view');
   if (!page) { mount(view, html`<div class="page"><div class="empty">${icon('search', 34)}<h2>Page not found</h2><p>That page does not exist.</p><p style="margin-top:14px"><a class="btn primary" href="#/">Go home</a></p></div></div>`); return; }
@@ -124,7 +130,7 @@ async function route() {
   }
   window.scrollTo(0, 0);
   const inQuiz = path.startsWith('/quiz/');
-  document.body.classList.toggle('has-tabs', !inQuiz);
+  document.body.classList.toggle('has-tabs', !inQuiz && !!user());
 }
 
 /* ---------- global events ---------- */
