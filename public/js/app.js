@@ -173,3 +173,8 @@ window.addEventListener('hashchange', route);
   }
   route();
 })();
+
+/* ---------- installable app (PWA) ---------- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => { /* app still works as a normal site */ }); });
+}
