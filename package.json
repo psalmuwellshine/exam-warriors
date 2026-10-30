@@ -1,8 +1,8 @@
 {
-  "name": "exam-warriors",
-  "version": "2.0.0",
+  "name": "altidian",
+  "version": "3.0.0",
   "private": true,
-  "description": "Exam Warriors: study library, quizzes and leaderboard for NDU students",
+  "description": "Altidian: study library, quizzes, leaderboard and student profiles by faculty, department and level",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

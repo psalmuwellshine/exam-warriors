@@ -1,6 +1,6 @@
 'use strict';
 /*
-  Exam Warriors server. Uses only Node's built-in modules (plus `mongodb`, loaded
+  Altidian server. Uses only Node's built-in modules (plus `mongodb`, loaded
   only when MONGODB_URI is set), so there is nothing heavy to install.
     lib/      shared helpers and the scoring rules
     routes/   public.js for students, admin.js for the control panel
@@ -13,6 +13,7 @@ const crypto = require('crypto');
 const { createStore } = require('./store');
 const H = require('./lib/helpers');
 const { FILE_TYPES } = require('./lib/files');
+const { seedAcademics } = require('./lib/academics');
 
 const { HttpError, send } = H;
 const PORT = process.env.PORT || 3000;
@@ -54,6 +55,7 @@ function serveStatic(req, res, pathname) {
 
 async function main() {
   const store = await createStore();
+  await seedAcademics(store);
 
   const routes = [];
   function route(method, pattern, opts, handler) {
@@ -94,7 +96,7 @@ async function main() {
         const body = ['POST', 'PUT'].includes(req.method) ? await H.readJson(req) : {};
         return await r.handler(req, res, { params: params.map(decodeURIComponent), query: url.searchParams, body });
       }
-      if (pathname.startsWith('/api/') || pathname.startsWith('/files/') || pathMatch) throw new HttpError(pathMatch ? 405 : 404, pathMatch ? 'Method not allowed.' : 'Not found.');
+      if (pathname.startsWith('/api/') || pathname.startsWith('/files/') || pathname.startsWith('/avatars/') || pathMatch) throw new HttpError(pathMatch ? 405 : 404, pathMatch ? 'Method not allowed.' : 'Not found.');
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Method not allowed.');
       serveStatic(req, res, pathname);
     } catch (e) {
@@ -106,7 +108,7 @@ async function main() {
   });
   server.requestTimeout = 120000;
   server.listen(PORT, () => {
-    console.log('Exam Warriors running on port ' + PORT + ' (storage: ' + store.kind + ')');
+    console.log('Altidian running on port ' + PORT + ' (storage: ' + store.kind + ')');
     if (!H.ADMIN_PASSWORD) console.warn('WARNING: ADMIN_PASSWORD is not set, so the admin page is disabled.');
   });
 }

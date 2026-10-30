@@ -1,4 +1,4 @@
-# Exam Warriors
+# Altidian
 
 Study library, quizzes, leaderboard, events and student profiles for NDU students, with a
 full admin control panel.
@@ -8,13 +8,14 @@ full admin control panel.
 
 ## What the admin panel controls
 - **Overview**: totals, 14-day activity chart, most attempted quizzes, newest students.
-- **Students**: search, view scores, set a new password, disable or enable, clear scores, delete, CSV downloads.
+- **Academics**: faculties, departments or programmes (each with its highest level, 100 to 600) and courses (code, title, level, which departments take it, or all departments).
+- **Students**: search by name or matric number, filter by department and level, view scores, edit matric/department/level, remove a profile picture, set a new password, disable or enable, clear scores, delete, CSV downloads.
 - **Materials**: add, edit, pin, hide, delete. Notes, past questions, slides, videos, links, files (12 MB).
 - **Quizzes**: build or edit, hide as draft, paste many questions at once, see attempts and average score.
 - **Events**: add, edit, delete. Shown on the home page and the Events page.
 - **Announcement**: banner at the top of every page (info, important, good news).
 - **Leaderboard**: clear one entry or reset the season.
-- **Site settings**: site name, tagline, hero text, footer, open or close registration, require login for quizzes, turn the leaderboard on or off, course list, WhatsApp / Telegram / Instagram / email links.
+- **Site settings**: site name, tagline, motto, hero text, footer, open or close registration, require login for quizzes, turn the leaderboard on or off, WhatsApp / Telegram / Instagram / email links.
 
 Environment variables: `ADMIN_PASSWORD` (required), `MONGODB_URI` (for permanent storage on free hosting), `SESSION_SECRET` (optional, a long random text; Render generates it).
 
