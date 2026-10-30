@@ -1,5 +1,5 @@
-/* Exam Warriors student site: shell, state, router. Pages live in /js/pages. */
-import { html, raw, mount, icon, api, toast, initTheme, toggleTheme, initial, ApiError } from './core/ui.js';
+/* Altidian student site: shell, state, router. Pages live in /js/pages. */
+import { html, raw, mount, icon, api, toast, initTheme, toggleTheme, initial, avatar, ApiError } from './core/ui.js';
 import * as home from './pages/home.js';
 import * as library from './pages/library.js';
 import * as quizzes from './pages/quizzes.js';
@@ -49,17 +49,17 @@ function renderChrome() {
   const oldView = document.getElementById('view');
   mount(shell, html`
     <header class="topbar"><div class="wrap in">
-      <a class="brand" href="#/"><img src="/logo.png" alt=""><span>${c.siteName}</span></a>
+      <a class="brand" href="#/"><img src="/logo.png" alt=""><span class="name">${c.siteName}</span></a>
       ${u ? html`<nav class="nav" aria-label="Main">${PAGES.map((p) => html`<a href="#${p.path}" class="${cur === p.id ? 'on' : ''}" ${cur === p.id ? raw('aria-current="page"') : ''}>${icon(p.icon, 18)}${p.label}</a>`)}</nav>` : html`<span></span>`}
       <div class="top-end">
         <button class="icon-btn" data-action="theme" type="button" aria-label="Switch light and dark mode">${icon('moon', 19)}</button>
-        ${u ? html`<a class="avatar" href="#/profile" aria-label="Your profile (${u.username})">${initial(u.username)}</a>` : ''}
+        ${u ? html`<a class="avatar-link" href="#/profile" aria-label="Your profile (${u.username})">${avatar(u.username, u.avatarId)}</a>` : ''}
       </div>
     </div></header>
     ${S.state.notice ? html`<div class="notice ${S.state.notice.level}" role="status"><div class="wrap">${icon('bell', 19)}<span>${S.state.notice.text}</span></div></div>` : ''}
     <main id="view" class="wrap" tabindex="-1"></main>
     <footer class="foot"><div class="wrap in">
-      <div><b>${c.siteName}</b> ${c.tagline ? html`· ${c.tagline}` : ''}<br><span class="tiny">${c.footerText}</span></div>
+      <div><b>${c.siteName}</b> ${c.tagline ? html`· ${c.tagline}` : ''}<br>${c.motto ? html`<span class="motto">${c.motto}</span><br>` : ''}<span class="tiny">${c.footerText}</span></div>
       <div class="links">
         ${L.whatsapp ? html`<a href="${L.whatsapp}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
         ${L.telegram ? html`<a href="${L.telegram}" target="_blank" rel="noopener">Telegram</a>` : ''}
@@ -138,7 +138,7 @@ actions.theme = () => toggleTheme();
 actions.retry = () => route();
 actions.share = async (el, ev) => {
   ev.preventDefault();
-  const data = { title: config().siteName, text: config().tagline || 'Study with Exam Warriors', url: location.origin };
+  const data = { title: config().siteName, text: config().tagline || 'Study with Altidian', url: location.origin };
   try { if (navigator.share) { await navigator.share(data); return; } } catch (e) { return; }
   try { await navigator.clipboard.writeText(location.origin); toast('Link copied. Paste it in your group.'); } catch (e) { toast(location.origin); }
 };
@@ -168,7 +168,7 @@ window.addEventListener('hashchange', route);
 /* ---------- start ---------- */
 (async function start() {
   try { await load(); } catch (e) {
-    document.getElementById('shell').innerHTML = '<div class="wrap" style="padding-top:80px"><div class="alert bad">Could not load Exam Warriors. Check your connection and refresh.</div></div>';
+    document.getElementById('shell').innerHTML = '<div class="wrap" style="padding-top:80px"><div class="alert bad">Could not load Altidian. Check your connection and refresh.</div></div>';
     return;
   }
   route();
