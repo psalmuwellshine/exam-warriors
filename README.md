@@ -1,10 +1,22 @@
 # Exam Warriors
 
-Study library, practice quizzes and a shared leaderboard for NDU students, with a
-password-protected admin page.
+Study library, quizzes, leaderboard, events and student profiles for NDU students, with a
+full admin control panel.
 
-- Students: `/`  (Library, Quizzes, Leaderboard)
+- Students: `/`  (Home, Library, Quizzes, Ranks, Events, Profile)
 - You (admin): `/admin`
+
+## What the admin panel controls
+- **Overview**: totals, 14-day activity chart, most attempted quizzes, newest students.
+- **Students**: search, view scores, set a new password, disable or enable, clear scores, delete, CSV downloads.
+- **Materials**: add, edit, pin, hide, delete. Notes, past questions, slides, videos, links, files (12 MB).
+- **Quizzes**: build or edit, hide as draft, paste many questions at once, see attempts and average score.
+- **Events**: add, edit, delete. Shown on the home page and the Events page.
+- **Announcement**: banner at the top of every page (info, important, good news).
+- **Leaderboard**: clear one entry or reset the season.
+- **Site settings**: site name, tagline, hero text, footer, open or close registration, require login for quizzes, turn the leaderboard on or off, course list, WhatsApp / Telegram / Instagram / email links.
+
+Environment variables: `ADMIN_PASSWORD` (required), `MONGODB_URI` (for permanent storage on free hosting), `SESSION_SECRET` (optional, a long random text; Render generates it).
 
 No build step. The server uses only Node's built-in modules. The `mongodb` package is
 loaded only when you connect a database.

@@ -11,7 +11,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 
-const COLLECTIONS = ['materials', 'quizzes', 'scores', 'settings', 'users'];
+const COLLECTIONS = ['materials', 'quizzes', 'scores', 'settings', 'users', 'events'];
 const FILE_ID = /^[a-f0-9]{16}$/;
 
 function fileStore(dir) {
