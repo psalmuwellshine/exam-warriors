@@ -220,3 +220,15 @@ td.num { white-space: nowrap; }
 .board-tabs { margin-bottom: 14px; }
 .p-head .grow { min-width: 0; } .me-meta .chip { max-width: 100%; white-space: normal; }
 @media (max-width: 560px) { .p-head { flex-direction: column; text-align: center; } .me-meta { justify-content: center; } .rankbar { margin-inline: auto; } }
+
+/* Minimised groups on the home page: tap a heading to open it */
+.folds { display: grid; gap: 12px; }
+.fold { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+.fold > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; min-height: 56px; border-radius: var(--r); }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: ''; width: 9px; height: 9px; margin-left: 4px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); transition: transform .2s; flex: none; }
+.fold[open] > summary::after { transform: rotate(-135deg); }
+.fold > summary:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.fold > summary b { font: 700 16px var(--f-body); }
+.fold-body { padding: 4px 16px 18px; }
+.fold-more { margin-top: 14px; }
