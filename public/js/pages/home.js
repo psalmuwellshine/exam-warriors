@@ -1,5 +1,5 @@
-import { html, icon, plural, esc, avatar } from '../core/ui.js';
-import { resourceCard, eventTile, leaderRows, emptyState, inScope, hasPlace, placeLine } from './shared.js';
+import { html, icon, plural, esc, avatar, kindLabel, kindIcon } from '../core/ui.js';
+import { resourceCard, quizCard, eventTile, leaderRows, emptyState, inScope, hasPlace, placeLine } from './shared.js';
 import { todayKey } from '../core/ui.js';
 
 export async function render({ S, user, config }) {
@@ -7,7 +7,20 @@ export async function render({ S, user, config }) {
   const upcoming = st.events.filter((e) => e.date >= todayKey()).slice(0, 3);
   let pool = st.materials.filter((m) => inScope(S, u, 'mine', m.course));
   if (!pool.length) pool = st.materials;
-  const feat = pool.slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).slice(0, 6);
+  const sorted = pool.slice().sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  let quizPool = st.quizzes.filter((q) => inScope(S, u, 'mine', q.course));
+  if (!quizPool.length) quizPool = st.quizzes;
+  const best = (st.me && st.me.best) || {};
+  // Everything starts minimised. A student taps a heading to open it.
+  const fold = (ic, title, total, cards, seeAllHref) => html`<details class="fold">
+    <summary><span class="ico-box">${icon(ic, 20)}</span><span class="grow"><b>${title}</b></span><span class="chip grey">${total}</span></summary>
+    <div class="fold-body"><div class="cards">${cards}</div>${total > 6 ? html`<p class="fold-more"><a class="btn ghost small" href="${seeAllHref}">See all ${total} ${icon('arrow', 15)}</a></p>` : ''}</div></details>`;
+  const groups = [];
+  [['notes', 'Notes'], ['pq', 'Past questions'], ['slides', 'Slides'], ['video', 'Videos'], ['other', 'Other resources']].forEach(([k, label]) => {
+    const items = sorted.filter((m) => m.kind === k);
+    if (items.length) groups.push(fold(kindIcon[k] || 'file', label, items.length, items.slice(0, 6).map(resourceCard), '#/library'));
+  });
+  if (quizPool.length) groups.push(fold('quiz', 'Practice quizzes', quizPool.length, quizPool.slice(0, 6).map((q) => quizCard(q, best[q.id], null)), '#/quizzes'));
   return html`
     ${u && !hasPlace(u) ? html`<div class="alert warning" style="margin-top:16px">Tell us your department and level to see the right courses. <a href="#/profile">Update my profile</a></div>` : ''}
     <section class="hero">
@@ -28,8 +41,8 @@ export async function render({ S, user, config }) {
       <div><p class="muted small">Welcome back</p><h3>${u.username}</h3><p class="small"><span class="chip brand">${st.me.rank.title}</span> ${st.me.points} points${st.me.position ? ' · #' + st.me.position + ' on the board' : ''}</p></div></div>
       <a class="btn gold" href="#/profile">View my profile ${icon('arrow', 17)}</a></div></section>` : ''}
 
-    <section class="sec"><div class="sec-head"><div><h2>Fresh for you</h2><p>${hasPlace(u) ? 'For ' + placeLine(S, u) + '.' : 'Pinned and newest resources.'}</p></div><a class="btn ghost small" href="#/library">See all</a></div>
-      ${feat.length ? html`<div class="cards">${feat.map(resourceCard)}</div>` : emptyState('book', 'Nothing here yet', 'New study materials will show up here as soon as they are added.')}</section>
+    <section class="sec"><div class="sec-head"><div><h2>Fresh for you</h2><p>${hasPlace(u) ? 'For ' + placeLine(S, u) + '. Tap a heading to open it.' : 'Pinned and newest resources. Tap a heading to open it.'}</p></div><a class="btn ghost small" href="#/library">See all</a></div>
+      ${groups.length ? html`<div class="folds">${groups}</div>` : emptyState('book', 'Nothing here yet', 'New study materials will show up here as soon as they are added.')}</section>
 
     <section class="sec"><div class="sec-head"><div><h2>Coming up</h2><p>Notices and events from ${c.siteName}.</p></div><a class="btn ghost small" href="#/events">All events</a></div>
       ${upcoming.length ? html`<div class="cards">${upcoming.map(eventTile)}</div>` : emptyState('calendar', 'No upcoming events', 'Check back soon.')}</section>
