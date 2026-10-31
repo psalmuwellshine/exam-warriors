@@ -21,6 +21,7 @@ const csv = (rows) => rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '
 module.exports = function registerAdmin({ route, store, send }) {
   const A = { admin: true };
 
+  const VIEWABLE = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']);
   // Prices are whole naira. Used by materials, quizzes and the semester pass.
   function wholeNaira(v, what, allowBlank) {
     if (allowBlank && (v === '' || v === null || v === undefined)) return 0;
@@ -288,6 +289,7 @@ module.exports = function registerAdmin({ route, store, send }) {
       if (doc.fileId) dropFile = doc.fileId;
       doc.fileId = newId(); doc.fileType = type; doc.fileName = clean(b.file.name, 100) || 'file';
     }
+    if (doc.paid && doc.fileId && !VIEWABLE.has(doc.fileType)) throw new HttpError(400, 'Paid items must use a PDF or an image, so students can view them without downloading. Convert Word or PowerPoint files to PDF first.');
     if (!doc.note && !doc.link && !doc.fileId) throw new HttpError(400, 'Add a note, a file or a link.');
     return { doc, fileBuf, dropFile };
   }

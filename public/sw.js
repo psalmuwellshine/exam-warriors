@@ -1,7 +1,7 @@
 /* Altidian service worker: lets the app install and open even on a poor connection.
    Pages and files are always fetched fresh when online (so updates show straight away),
    and a saved copy is used only when the network fails. Account and quiz data (/api) is never saved. */
-const CACHE = 'altidian-shell-v1';
+const CACHE = 'altidian-shell-v2';
 const SHELL = ['/', '/css/app.css', '/js/app.js', '/logo.png', '/icon-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -20,7 +20,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return; // fonts etc. go straight to the network
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin')) return; // never touch account, quiz or admin data
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/admin') || url.pathname.startsWith('/files/')) return; // never save account, quiz, admin or paid-file data
 
   e.respondWith(
     fetch(req)

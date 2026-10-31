@@ -1,18 +1,19 @@
 /* Pieces used by more than one student page. */
 import { html, raw, icon, esc, kindLabel, kindIcon, eventDate, todayKey, pct, initial, avatar } from '../core/ui.js';
 
+const naira = (n) => '₦' + Number(n || 0).toLocaleString('en-NG');
 export function resourceCard(m) {
   const long = (m.note || '').length > 140;
-  return html`<article class="card res ${m.pinned ? 'pinned' : ''}">
+  return html`<article class="card res ${m.pinned ? 'pinned' : ''} ${m.paid ? 'no-copy' : ''}">
     <div class="row gap-s"><div class="ico-box ${m.kind === 'video' ? 'brand' : ''}">${icon(kindIcon[m.kind] || 'file', 22)}</div>
-      <div class="top grow"><span class="chip">${m.course}</span><span class="chip grey">${kindLabel[m.kind] || 'Resource'}</span>${m.pinned ? html`<span class="chip brand">${icon('pin', 13)} Pinned</span>` : ''}</div></div>
+      <div class="top grow"><span class="chip">${m.course}</span><span class="chip grey">${kindLabel[m.kind] || 'Resource'}</span>${m.pinned ? html`<span class="chip brand">${icon('pin', 13)} Pinned</span>` : ''}${m.paid ? html`<span class="chip ${m.locked ? 'bad' : 'good'}">${icon(m.locked ? 'lock' : 'check', 13)} ${m.locked ? naira(m.price) : 'Unlocked'}</span>` : ''}</div></div>
     <h3>${m.title}</h3>
     ${m.note ? html`<p class="note">${m.note}</p>` : ''}
-    <div class="go row wrap-r gap-s">
-      ${m.fileId ? html`<a class="btn primary small" href="/files/${m.fileId}" target="_blank" rel="noopener">${icon('download', 16)} Open file</a>` : ''}
+    ${m.locked ? html`<div class="go"><button class="btn gold small" data-action="unlock" data-id="${m.id}" type="button">${icon('lock', 16)} Unlock</button></div>` : html`<div class="go row wrap-r gap-s">
+      ${m.fileId ? (m.paid ? html`<button class="btn primary small" data-action="view-file" data-id="${m.id}" type="button">${icon('eye', 16)} View</button>` : html`<a class="btn primary small" href="/files/${m.fileId}" target="_blank" rel="noopener">${icon('download', 16)} Open file</a>`) : ''}
       ${m.link ? html`<a class="btn ${m.fileId ? 'ghost' : 'primary'} small" href="${m.link}" target="_blank" rel="noopener noreferrer">${icon(m.kind === 'video' ? 'video' : 'link', 16)} ${m.kind === 'video' ? 'Watch' : 'Open link'}</a>` : ''}
       ${long || (m.note && !m.fileId && !m.link) ? html`<button class="btn ghost small" data-action="read" data-id="${m.id}" type="button">Read notes</button>` : ''}
-    </div>
+    </div>`}
   </article>`;
 }
 
@@ -32,10 +33,10 @@ export function eventTile(e) {
 export function quizCard(q, best, ctx) {
   const done = best ? pct(best.correct, best.total) : null;
   return html`<article class="card quiz-card">
-    <div class="row gap-s wrap-r"><span class="chip">${q.course}</span><span class="chip grey">${q.questions.length} questions</span>${best ? html`<span class="chip good">${icon('check', 13)} Done</span>` : ''}</div>
+    <div class="row gap-s wrap-r"><span class="chip">${q.course}</span><span class="chip grey">${q.count || q.questions.length} questions</span>${q.paid ? html`<span class="chip ${q.locked ? 'bad' : 'good'}">${icon(q.locked ? 'lock' : 'check', 13)} ${q.locked ? naira(q.price) : 'Unlocked'}</span>` : ''}${best ? html`<span class="chip good">${icon('check', 13)} Done</span>` : ''}</div>
     <h3>${q.title}</h3>
     ${best ? html`<div><div class="row between small"><span class="muted">Best score</span><b>${best.correct}/${best.total}</b></div><div class="bar" style="margin-top:6px"><i style="width:${done}%"></i></div></div>` : html`<p class="muted small">Not tried yet. Every correct answer earns 10 points.</p>`}
-    <a class="btn ${best ? 'ghost' : 'primary'} block" style="margin-top:auto" href="#/quiz/${q.id}">${best ? 'Try again' : 'Start quiz'} ${icon('arrow', 17)}</a>
+    ${q.locked ? html`<button class="btn gold block" style="margin-top:auto" data-action="unlock" data-id="${q.id}" type="button">${icon('lock', 17)} Unlock</button>` : html`<a class="btn ${best ? 'ghost' : 'primary'} block" style="margin-top:auto" href="#/quiz/${q.id}">${best ? 'Try again' : 'Start quiz'} ${icon('arrow', 17)}</a>`}
   </article>`;
 }
 

@@ -68,8 +68,20 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
       notice: notice && notice.text ? { text: notice.text, level: notice.level || 'info' } : null,
       materials: visibleMaterials
         .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))
-        .map((m) => ({ id: m.id, title: m.title, course: m.course, kind: m.kind, note: m.note || '', link: m.link || '', fileId: m.fileId || '', fileName: m.fileName || '', pinned: !!m.pinned, addedAt: m.addedAt })),
-      quizzes: visibleQuizzes.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)),
+        .map((m) => {
+          const open = D.hasAccess(user, m);
+          // A locked item still shows its title and price, but none of its content.
+          return {
+            id: m.id, title: m.title, course: m.course, kind: m.kind, pinned: !!m.pinned, addedAt: m.addedAt,
+            note: open ? m.note || '' : '', link: open ? m.link || '' : '', fileId: open ? m.fileId || '' : '', fileName: open ? m.fileName || '' : '',
+            ...(m.paid ? { paid: true, price: m.price, locked: !open } : {}),
+          };
+        }),
+      quizzes: visibleQuizzes.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)).map((q) => {
+        const open = D.hasAccess(user, q);
+        // A locked quiz keeps its title, price and question count, but no questions or answers.
+        return { ...q, count: q.questions.length, questions: open ? q.questions : [], ...(q.paid ? { locked: !open } : {}) };
+      }),
       events: events.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''))).slice(0, 200),
       board: config.leaderboardEnabled
         ? board.slice(0, 200).map((b, i) => ({ rank: i + 1, name: b.name, points: b.points, done: b.done, isUser: b.isUser, me: b.id === meId, avatar: b.avatar, dept: b.dept, level: b.level }))
@@ -85,15 +97,23 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
     const mats = await store.list('materials');
     const m = mats.find((x) => x.fileId === id);
     if (!m || (m.hidden && !H.isAdmin(req))) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
+    if (m.paid && !H.isAdmin(req) && !D.hasAccess(await userOf(req), m)) {
+      return send(res, 403, 'This file is locked. Open Altidian and unlock it first.', { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    }
+    // Paid files are view-only: only Altidian's own viewer asks for them (it sends this header).
+    // Typing the address into a browser, or a download link, gets nothing.
+    if (m.paid && !H.isAdmin(req) && req.headers['x-altidian-view'] !== '1') {
+      return send(res, 403, 'This file is view-only. Open it from inside Altidian.', { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    }
     const buf = await store.getFile(id);
     if (!buf) return send(res, 404, 'Not found', { 'Content-Type': 'text/plain' });
     const meta = fileTypes[m.fileType] || { inline: false };
     const name = (m.fileName || 'file').replace(/[^\w.\- ]+/g, '_');
     send(res, 200, buf, {
       'Content-Type': m.fileType || 'application/octet-stream',
-      'Content-Disposition': (meta.inline ? 'inline' : 'attachment') + "; filename*=UTF-8''" + encodeURIComponent(name),
+      'Content-Disposition': (meta.inline || m.paid ? 'inline' : 'attachment') + "; filename*=UTF-8''" + encodeURIComponent(name),
       'Content-Security-Policy': 'sandbox',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': m.paid ? 'private, no-store' : 'public, max-age=3600', // paid files must never sit in a shared cache
     });
   });
 
@@ -274,6 +294,7 @@ module.exports = function registerPublic({ route, store, send, userOf, fileTypes
     if (typeof quizId !== 'string') throw new HttpError(400, 'Invalid request.');
     const quiz = await store.get('quizzes', quizId);
     if (!quiz || quiz.hidden) throw new HttpError(404, 'That quiz is no longer available.');
+    if (!D.hasAccess(user, quiz)) throw new HttpError(403, 'This quiz is locked. Unlock it to take it.');
     if (!Array.isArray(answers) || answers.length !== quiz.questions.length) throw new HttpError(400, 'Answers do not match the quiz.');
 
     let correct = 0;

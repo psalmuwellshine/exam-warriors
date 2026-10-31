@@ -6,6 +6,7 @@ import * as quizzes from './pages/quizzes.js';
 import * as board from './pages/board.js';
 import * as events from './pages/events.js';
 import * as account from './pages/account.js';
+import * as viewer from './pages/viewer.js';
 
 initTheme();
 
@@ -38,7 +39,7 @@ const PAGES = [
   { id: 'events', path: '/events', label: 'Events', icon: 'calendar', mod: events },
 ];
 const ctxApi = { S, load, user, config, go, renderView: () => route() };
-const modules = [home, library, quizzes, board, events, account];
+const modules = [home, library, quizzes, board, events, account, viewer];
 const actions = Object.assign({}, ...modules.map((m) => m.actions || {}));
 
 /* ---------- chrome (header, notice, tabs, footer) ---------- */
@@ -136,6 +137,7 @@ async function route() {
 /* ---------- global events ---------- */
 actions.theme = () => toggleTheme();
 actions.retry = () => route();
+actions.unlock = () => toast('Online payment opens very soon. Please check back shortly.'); // replaced when payment is connected
 actions.share = async (el, ev) => {
   ev.preventDefault();
   const data = { title: config().siteName, text: config().tagline || 'Study with Altidian', url: location.origin };

@@ -71,8 +71,9 @@ export const runner = {
   async render({ S }, { id }) {
     const quiz = S.state.quizzes.find((q) => q.id === id);
     if (!quiz) return html`<div class="empty">${icon('quiz', 34)}<h3>Quiz not available</h3><p>It may have been removed or hidden.</p><p style="margin-top:14px"><a class="btn primary" href="#/quizzes">Back to quizzes</a></p></div>`;
+    if (quiz.locked) return html`<div class="empty">${icon('lock', 34)}<h3>This quiz is locked</h3><p>Unlock it to take it.</p><p style="margin-top:14px"><a class="btn primary" href="#/quizzes">Back to quizzes</a></p></div>`;
     run = { quiz, i: 0, answers: quiz.questions.map(() => null), picked: null, result: null };
-    return html`<div class="runner" id="runner"></div>`;
+    return html`<div class="runner ${quiz.paid ? 'no-copy' : ''}" id="runner"></div>`;
   },
   after() { if (run) draw(); },
 };

@@ -38,8 +38,8 @@ export const actions = {
   read(el, ev, { S }) {
     const m = S.state.materials.find((x) => x.id === el.dataset.id); if (!m) return;
     dialog(html`<div class="row gap-s wrap-r" style="margin-bottom:10px"><span class="chip">${m.course}</span><span class="chip grey">${kindLabel[m.kind] || 'Resource'}</span></div>
-      <h3>${m.title}</h3><div style="white-space:pre-line;margin:12px 0 20px;line-height:1.65">${m.note || ''}</div>
-      <div class="row end gap-s wrap-r">${m.fileId ? html`<a class="btn primary small" href="/files/${m.fileId}" target="_blank" rel="noopener">${icon('download', 16)} Open file</a>` : ''}
+      <h3>${m.title}</h3><div class="${m.paid ? 'no-copy' : ''}" style="white-space:pre-line;margin:12px 0 20px;line-height:1.65">${m.note || ''}</div>
+      <div class="row end gap-s wrap-r">${m.fileId ? (m.paid ? html`<button class="btn primary small" data-action="view-file" data-id="${m.id}" type="button">${icon('eye', 16)} View</button>` : html`<a class="btn primary small" href="/files/${m.fileId}" target="_blank" rel="noopener">${icon('download', 16)} Open file</a>`) : ''}
       ${m.link ? html`<a class="btn ghost small" href="${m.link}" target="_blank" rel="noopener noreferrer">${icon('link', 16)} Open link</a>` : ''}
       <button class="btn ghost small" data-close type="button" autofocus>Close</button></div>`, { wide: true });
   },
